@@ -1,0 +1,21 @@
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+!/.idea/icon.png
+!/.idea/vcs.xml
+!/.idea/codeStyles/
+
+### Build Tools ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+### Kotlin ###
+.kotlin/
+
+### OS Files ###
+.DS_Store
+Thumbs.db
