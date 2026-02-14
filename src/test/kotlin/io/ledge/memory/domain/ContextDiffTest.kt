@@ -13,6 +13,7 @@ class ContextDiffTest {
         val toSnapshot = TestFixtures.snapshotId()
         val added = listOf(TestFixtures.memoryEntry())
         val removed = listOf(TestFixtures.memoryEntry())
+        // Same entryId for before/after represents a modification to an existing entry
         val entryId = TestFixtures.entryId()
         val before = TestFixtures.memoryEntry(id = entryId, content = "old")
         val after = TestFixtures.memoryEntry(id = entryId, content = "new")

@@ -8,6 +8,11 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 
+/**
+ * Tests the Session aggregate root — the primary ingestion entry point.
+ * Session enforces: events can only be ingested while ACTIVE,
+ * and terminal transitions (complete/abandon) are one-way.
+ */
 class SessionTest {
 
     private fun activeSession() = Session(
@@ -29,6 +34,7 @@ class SessionTest {
             contextHash = contextHash
         )
 
+        // Session-level fields (sessionId, agentId, tenantId) are propagated to the event
         assertEquals(eventId, event.id)
         assertEquals(session.id, event.sessionId)
         assertEquals(session.agentId, event.agentId)

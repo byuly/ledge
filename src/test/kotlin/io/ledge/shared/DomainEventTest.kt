@@ -44,6 +44,8 @@ class DomainEventTest {
         assertEquals(now, event.occurredAt)
     }
 
+    // Verifies that the sealed interface's `when` expression is exhaustive at compile time.
+    // If a new subtype is added to DomainEvent, this test will fail to compile until handled.
     @Test
     fun `exhaustive when over sealed interface covers both subtypes`() {
         val events: List<DomainEvent> = listOf(

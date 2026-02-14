@@ -5,6 +5,11 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Assertions.assertEquals
 
+/**
+ * Tests the Tenant aggregate root's state machine:
+ * ACTIVE → SUSPENDED → DELETED, and ACTIVE → DELETED.
+ * Only forward transitions are allowed; reversals and duplicates throw.
+ */
 class TenantTest {
 
     private fun activeTenant() = Tenant(

@@ -9,10 +9,16 @@ import io.ledge.memory.domain.MemoryEntryType
 import io.ledge.shared.*
 import java.time.Instant
 
+/**
+ * Shared factory methods for test objects across all bounded contexts.
+ * Each call generates unique IDs to avoid cross-test interference.
+ */
 object TestFixtures {
 
+    /** 64-char lowercase hex — valid for both ContextHash and ContentHash. */
     const val VALID_SHA256 = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90"
 
+    // Typed ID generators — each call returns a new random UUID-backed ID
     fun tenantId(): TenantId = TenantId.generate()
     fun agentId(): AgentId = AgentId.generate()
     fun sessionId(): SessionId = SessionId.generate()
