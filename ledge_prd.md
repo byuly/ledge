@@ -1,7 +1,7 @@
 # ledge — Product Requirements Document
 
 > **Status:** Complete (v1 scope)
-> **Version:** 1.1
+> **Version:** 1.2
 > **Type:** Open-source self-hostable service + developer SDK
 
 ---
@@ -433,57 +433,67 @@ volumes:
 
 ### 5.1 MemoryEvent
 
-The fundamental unit. Every interaction the AI has with its memory is a `MemoryEvent`. Immutable once written.
+The fundamental unit. Every interaction the AI has with its memory is a `MemoryEvent`. Immutable once written. Uses typed IDs from the shared kernel — never raw UUIDs.
 
 ```kotlin
+// io.ledge.ingestion.domain.MemoryEvent — immutable data class
 data class MemoryEvent(
-    val eventId: UUID,            // globally unique, immutable
-    val sessionId: UUID,          // groups events into a conversation
-    val agentId: UUID,            // which AI agent produced this
-    val tenantId: UUID,           // multi-tenancy scope
+    val id: EventId,              // globally unique, immutable (typed)
+    val sessionId: SessionId,     // groups events into a conversation
+    val agentId: AgentId,         // which AI agent produced this
+    val tenantId: TenantId,       // multi-tenancy scope
     val eventType: EventType,     // see enum below
-    val sequenceNumber: Long,     // monotonic per-session ordering
+    val sequenceNumber: Long,     // monotonic per-session ordering (assigned by Session aggregate)
     val occurredAt: Instant,      // wall clock time, UTC
-    val payload: JsonB,           // event-type-specific data
-    val contextHash: String,      // SHA-256 of full context window at time of event
-    val parentEventId: UUID?,     // causal link to the event that triggered this one
-    val schemaVersion: Int        // for forward compatibility
+    val payload: String,          // event-type-specific JSON data
+    val contextHash: ContextHash?,// SHA-256 value object (validated on construction)
+    val parentEventId: EventId?,  // causal link to the event that triggered this one
+    val schemaVersion: SchemaVersion // value object wrapping Int (must be positive)
 )
 
 enum class EventType {
-    CONTEXT_LOADED,           // facts/documents given to the model
-    INFERENCE_REQUESTED,      // prompt sent to model
-    INFERENCE_COMPLETED,      // response received from model
-    MEMORY_WRITTEN,           // something stored to long-term memory
-    MEMORY_READ,              // something retrieved from memory
-    MEMORY_EVICTED,           // something removed or decayed
-    TOOL_CALLED,              // external tool invoked
-    TOOL_RESULT_RECEIVED,     // tool returned data
-    GOAL_CREATED,             // new task/goal registered
-    GOAL_UPDATED,             // goal state changed
-    HUMAN_INTERVENTION        // human overrode or corrected the agent
+    USER_MESSAGE,             // message from the user
+    ASSISTANT_MESSAGE,        // response from the AI
+    TOOL_CALL,                // external tool invoked
+    TOOL_RESULT,              // tool returned data
+    ERROR,                    // error during processing
+    CONTEXT_SWITCH,           // context window changed
+    FEEDBACK,                 // user feedback on agent behavior
+    CORRECTION,               // user corrected the agent
+    PREFERENCE_EXPRESSED,     // user stated a preference
+    FACT_STATED,              // user or agent stated a fact
+    TASK_COMPLETED            // a task was finished
 }
 ```
 
-The `contextHash` is a SHA-256 fingerprint of the full context window at the time of the event. Two identical prompts with different `contextHash` values means different knowledge was present. This is what makes audit queries meaningful.
+The `contextHash` is a `ContextHash` value object wrapping a SHA-256 hex string (validated on construction — rejects non-SHA-256 values). Two identical prompts with different `contextHash` values means different knowledge was present. This is what makes audit queries meaningful.
+
+`SchemaVersion` is a value object wrapping a positive Int — `SchemaVersion(0)` throws on construction.
 
 ---
 
 ### 5.2 Session
 
-Groups `MemoryEvent` records into a logical conversation or task execution.
+Groups `MemoryEvent` records into a logical conversation or task execution. This is an **aggregate root** — it enforces invariants (session must be ACTIVE to ingest events, sequence numbers are monotonically increasing).
 
 ```kotlin
-data class Session(
-    val sessionId: UUID,
-    val agentId: UUID,
-    val tenantId: UUID,
+// io.ledge.ingestion.domain.Session — aggregate root (not a data class)
+class Session(
+    val id: SessionId,
+    val agentId: AgentId,
+    val tenantId: TenantId,
     val startedAt: Instant,
-    val endedAt: Instant?,
-    val status: SessionStatus,        // ACTIVE, COMPLETED, ABANDONED
-    val memorySnapshotId: UUID?,      // pointer to memory state at session end
-    val metadata: JsonB               // arbitrary tenant-defined tags (e.g. userId, requestId)
-)
+    var endedAt: Instant?,
+    var status: SessionStatus,            // ACTIVE, COMPLETED, ABANDONED
+    var nextSequenceNumber: Long          // monotonic counter for event ordering
+) {
+    // Key method — enforces invariant: session must be ACTIVE, assigns sequence number
+    fun ingest(eventId, eventType, payload, ...): MemoryEvent
+
+    // Lifecycle transitions — enforce valid state machine
+    fun complete()   // ACTIVE → COMPLETED (sets endedAt)
+    fun abandon()    // ACTIVE → ABANDONED (sets endedAt)
+}
 
 enum class SessionStatus {
     ACTIVE, COMPLETED, ABANDONED
@@ -494,18 +504,19 @@ enum class SessionStatus {
 
 ### 5.3 MemorySnapshot
 
-A point-in-time capture of everything the agent "knew." Analogous to a git commit — references its parent, contains full state, is immutable once created.
+A point-in-time capture of everything the agent "knew." Analogous to a git commit — references its parent, contains full state, is immutable once created. This is an **aggregate root** in the `memory` bounded context.
 
 ```kotlin
-data class MemorySnapshot(
-    val snapshotId: UUID,
-    val agentId: UUID,
-    val tenantId: UUID,
+// io.ledge.memory.domain.MemorySnapshot — aggregate root
+class MemorySnapshot(
+    val id: SnapshotId,
+    val agentId: AgentId,
+    val tenantId: TenantId,
     val createdAt: Instant,
-    val parentSnapshotId: UUID?,      // linked list of memory states over time
-    val snapshotHash: String,         // SHA-256 of full memory contents
-    val memoryEntries: List<MemoryEntry>,
-    val triggerEventId: UUID          // which MemoryEvent caused this snapshot
+    val parentSnapshotId: SnapshotId?,    // linked list of memory states over time
+    val snapshotHash: ContentHash,        // SHA-256 value object (validated)
+    val entries: List<MemoryEntry>,
+    val triggerEventId: EventId           // which MemoryEvent caused this snapshot
 )
 ```
 
@@ -516,16 +527,17 @@ data class MemorySnapshot(
 A discrete unit of knowledge the agent holds. Lives inside a `MemorySnapshot`.
 
 ```kotlin
+// io.ledge.memory.domain.MemoryEntry — entity
 data class MemoryEntry(
-    val entryId: UUID,
+    val id: EntryId,
     val content: String,              // the actual fact or knowledge
-    val contentHash: String,          // SHA-256 of content
+    val contentHash: ContentHash,     // SHA-256 value object (validated)
     val entryType: MemoryEntryType,
-    val confidence: Float,            // 0.0 to 1.0
-    val sourceEventId: UUID,          // which MemoryEvent created this entry
+    val confidence: Confidence,       // value object, validated 0.0..1.0
+    val sourceEventId: EventId,       // which MemoryEvent created this entry
     val createdAt: Instant,
     val expiresAt: Instant?,          // optional TTL (v2 decay feature)
-    val accessCount: Int,             // how many times retrieved
+    val accessCount: Long,            // how many times retrieved
     val lastAccessedAt: Instant?
 )
 
@@ -538,26 +550,27 @@ enum class MemoryEntryType {
 }
 ```
 
+**Value objects** — `Confidence(1.5f)` throws `IllegalArgumentException` on construction. `ContentHash("")` throws. These enforce domain rules at the type level.
+
 ---
 
 ### 5.5 ContextDiff
 
-The result of diffing two `MemorySnapshot` records. Core feature for compliance and incident investigation.
+The result of diffing two `MemorySnapshot` records. Core feature for compliance and incident investigation. This is a **computed value object** — not stored, produced on demand.
 
 ```kotlin
+// io.ledge.memory.domain.ContextDiff — value object (computed, not stored)
 data class ContextDiff(
-    val diffId: UUID,
-    val fromSnapshotId: UUID,
-    val toSnapshotId: UUID,
-    val computedAt: Instant,
+    val fromSnapshotId: SnapshotId,
+    val toSnapshotId: SnapshotId,
     val addedEntries: List<MemoryEntry>,
     val removedEntries: List<MemoryEntry>,
-    val modifiedEntries: List<MemoryEntryDelta>,
-    val confidenceShifts: Map<UUID, Float>    // entryId -> confidence delta
+    val modifiedEntries: List<MemoryEntryDelta>
 )
 
+// io.ledge.memory.domain.MemoryEntryDelta — value object
 data class MemoryEntryDelta(
-    val entryId: UUID,
+    val entryId: EntryId,
     val before: MemoryEntry,
     val after: MemoryEntry
 )
@@ -565,24 +578,33 @@ data class MemoryEntryDelta(
 
 ---
 
-### 5.6 Tenant + Agent (PostgreSQL)
+### 5.6 Tenant + Agent
+
+`Tenant` is an **aggregate root** in the `tenant` bounded context — it enforces lifecycle transitions (can't suspend a deleted tenant). `Agent` is an entity within the tenant context.
 
 ```kotlin
-data class Tenant(
-    val tenantId: UUID,
+// io.ledge.tenant.domain.Tenant — aggregate root (not a data class)
+class Tenant(
+    val id: TenantId,
     val name: String,
-    val apiKey: String,               // hashed, used for SDK auth
-    val createdAt: Instant,
-    val status: TenantStatus          // ACTIVE, SUSPENDED, DELETED
-)
+    val apiKeyHash: String,           // bcrypt hash, used for SDK auth
+    var status: TenantStatus,         // ACTIVE, SUSPENDED, DELETED
+    val createdAt: Instant
+) {
+    fun suspend()   // ACTIVE → SUSPENDED (throws if not ACTIVE)
+    fun delete()    // ACTIVE|SUSPENDED → DELETED (throws if already DELETED)
+}
 
+enum class TenantStatus { ACTIVE, SUSPENDED, DELETED }
+
+// io.ledge.tenant.domain.Agent — entity
 data class Agent(
-    val agentId: UUID,
-    val tenantId: UUID,
+    val id: AgentId,
+    val tenantId: TenantId,
     val name: String,
-    val description: String?,
+    val description: String,
     val createdAt: Instant,
-    val metadata: JsonB
+    val metadata: Map<String, String>
 )
 ```
 
@@ -1164,20 +1186,73 @@ These provide compile-time type safety with zero runtime overhead.
 ```
 io.ledge/
 ├── LedgeApplication.kt
-├── shared/          ← typed identifiers (shared kernel)
-├── ingestion/       ← write path
+├── shared/                   ← typed identifiers (shared kernel) + domain events
+│   ├── TenantId.kt
+│   ├── AgentId.kt
+│   ├── SessionId.kt
+│   ├── EventId.kt
+│   ├── SnapshotId.kt
+│   ├── EntryId.kt
+│   └── DomainEvent.kt       ← sealed interface for cross-context events
+├── ingestion/                ← write path
 │   ├── domain/
+│   │   ├── Session.kt        ← aggregate root
+│   │   ├── SessionStatus.kt
+│   │   ├── MemoryEvent.kt    ← immutable entity
+│   │   ├── EventType.kt
+│   │   ├── ContextHash.kt    ← value object (SHA-256)
+│   │   └── SchemaVersion.kt  ← value object (positive Int)
 │   ├── application/
 │   ├── infrastructure/
 │   └── api/
-├── memory/          ← read path, reconstruction, diffing
+├── memory/                   ← read path, reconstruction, diffing
 │   ├── domain/
+│   │   ├── MemorySnapshot.kt ← aggregate root
+│   │   ├── MemoryEntry.kt    ← entity
+│   │   ├── MemoryEntryType.kt
+│   │   ├── Confidence.kt     ← value object (0.0..1.0)
+│   │   ├── ContentHash.kt    ← value object (SHA-256)
+│   │   ├── ContextDiff.kt    ← value object (computed)
+│   │   └── MemoryEntryDelta.kt
 │   ├── application/
 │   ├── infrastructure/
 │   └── api/
-└── tenant/          ← identity, access, admin
+└── tenant/                   ← identity, access, admin
     ├── domain/
+    │   ├── Tenant.kt          ← aggregate root
+    │   ├── TenantStatus.kt
+    │   └── Agent.kt           ← entity
     ├── application/
     ├── infrastructure/
     └── api/
 ```
+
+### 12.6 Domain Events (Cross-Context Communication)
+
+Domain events are defined as a sealed interface in the shared kernel (`io.ledge.shared.DomainEvent`). These are the contracts for cross-context communication via Kafka:
+
+| Event | Producer | Consumer(s) | Purpose |
+|---|---|---|---|
+| `SessionCompleted` | `ingestion` | `memory` | Triggers snapshot creation when a session ends |
+| `TenantPurged` | `tenant` | `ingestion`, `memory` | GDPR cascade — purge all data for a tenant |
+
+Each event carries typed IDs and an `occurredAt` timestamp.
+
+### 12.7 Value Objects
+
+Domain value objects enforce business rules at construction time. They are implemented as `@JvmInline value class` for zero runtime overhead:
+
+| Value Object | Context | Validation |
+|---|---|---|
+| `ContextHash` | `ingestion` | Must be valid SHA-256 hex string (64 lowercase hex chars) |
+| `SchemaVersion` | `ingestion` | Must be positive integer |
+| `Confidence` | `memory` | Must be in range 0.0..1.0 |
+| `ContentHash` | `memory` | Must be valid SHA-256 hex string (64 lowercase hex chars) |
+
+### 12.8 Design Rules for Domain Layer
+
+1. **No Spring annotations** — domain layer is pure Kotlin. No `@Entity`, `@Component`, `@Repository`, etc.
+2. **Typed IDs everywhere** — `TenantId` not `UUID`. Shared kernel types from `io.ledge.shared`.
+3. **Aggregate roots enforce invariants** — `Session.ingest()` checks status. `Tenant.suspend()` checks valid transition. These are not anemic data classes.
+4. **Value objects validate on construction** — `Confidence(1.5f)` throws, `ContextHash("")` throws.
+5. **Immutable where the domain says immutable** — `MemoryEvent` is a data class with val-only properties. Aggregate roots use var for mutable state they manage (status, sequence counters).
