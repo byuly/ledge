@@ -1,16 +1,16 @@
 services:
 
-  memoryledger:
+  ledge:
     build: .
     ports:
       - "8080:8080"
     environment:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/memoryledger
+      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/ledge
       SPRING_R2DBC_USERNAME: ml_user
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
-      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/memoryledger
+      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/ledge
     depends_on:
       - kafka
       - postgres
@@ -33,7 +33,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      CLUSTER_ID: memoryledger-local
+      CLUSTER_ID: ledge-local
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
     healthcheck:
@@ -47,14 +47,13 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: memoryledger
+      POSTGRES_DB: ledge
       POSTGRES_USER: ml_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./infra/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ml_user -d memoryledger"]
+      test: ["CMD-SHELL", "pg_isready -U ml_user -d ledge"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -76,7 +75,6 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
       interval: 10s

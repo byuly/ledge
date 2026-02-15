@@ -1,7 +1,7 @@
 # ledge — Product Requirements Document
 
-> **Status:** Complete (v1 scope)
-> **Version:** 1.2
+> **Status:** In Progress (v1 scope)
+> **Version:** 1.3
 > **Type:** Open-source self-hostable service + developer SDK
 
 ---
@@ -19,6 +19,8 @@
 9. [v1 Scope vs v2 Backlog](#9-v1-scope-vs-v2-backlog)
 10. [Non-Functional Requirements](#10-non-functional-requirements)
 11. [Open Questions + Decisions](#11-open-questions--decisions)
+12. [Domain Architecture Decisions](#12-domain-architecture-decisions)
+13. [Implementation Progress](#13-implementation-progress)
 
 ---
 
