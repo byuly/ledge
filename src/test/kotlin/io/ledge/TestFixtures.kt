@@ -6,6 +6,7 @@ import io.ledge.memory.domain.Confidence
 import io.ledge.memory.domain.ContentHash
 import io.ledge.memory.domain.MemoryEntry
 import io.ledge.memory.domain.MemoryEntryType
+import io.ledge.memory.domain.MemorySnapshot
 import io.ledge.shared.*
 import java.time.Instant
 
@@ -30,6 +31,26 @@ object TestFixtures {
     fun contentHash(): ContentHash = ContentHash(VALID_SHA256)
     fun confidence(value: Float = 0.8f): Confidence = Confidence(value)
     fun schemaVersion(value: Int = 1): SchemaVersion = SchemaVersion(value)
+
+    fun memorySnapshot(
+        id: SnapshotId = snapshotId(),
+        agentId: AgentId = agentId(),
+        tenantId: TenantId = tenantId(),
+        createdAt: Instant = Instant.now(),
+        parentSnapshotId: SnapshotId? = null,
+        snapshotHash: ContentHash = contentHash(),
+        entries: List<MemoryEntry> = emptyList(),
+        triggerEventId: EventId = eventId()
+    ): MemorySnapshot = MemorySnapshot(
+        id = id,
+        agentId = agentId,
+        tenantId = tenantId,
+        createdAt = createdAt,
+        parentSnapshotId = parentSnapshotId,
+        snapshotHash = snapshotHash,
+        entries = entries,
+        triggerEventId = triggerEventId
+    )
 
     fun memoryEntry(
         id: EntryId = entryId(),
