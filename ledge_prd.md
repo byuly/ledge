@@ -521,7 +521,7 @@ Ingest a single memory event. Returns immediately (`202 Accepted`). Actual persi
 // Request body
 {
   "sessionId": "uuid",
-  "agentId": "uuid",
+  "agentId": "uuid",           // optional — validated against session's agentId if present
   "eventType": "ASSISTANT_MESSAGE",
   "occurredAt": "2024-01-16T14:47:00Z",
   "payload": { "prompt": "...", "response": "...", "modelId": "gpt-4o" },
@@ -546,7 +546,7 @@ Ingest up to 500 events in a single request. Same async semantics.
 { "events": [ /* array of event objects */ ] }
 
 // Response: 202 Accepted
-{ "accepted": 500, "eventIds": [ "uuid", "uuid", "..." ] }
+{ "accepted": 500, "results": [ { "eventId": "uuid", "sequenceNumber": 1 }, ... ] }
 ```
 
 ---
@@ -834,9 +834,10 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 - [x] Domain-level test coverage (all invariants and value object validations)
 - [x] `memory` application layer — `MemoryService` + port interfaces (`MemorySnapshotRepository`, `MemoryEntryRepository`, `DomainEventPublisher`)
 - [x] Infrastructure & test environment — docker-compose, observability config, `.env.example`, Testcontainers smoke test
+- [x] `ingestion` application layer — `IngestionService` + port interfaces (`SessionRepository`, `MemoryEventPublisher`, `DomainEventPublisher`, `MemoryEventQuery`) + command/result DTOs
 
 **Next**
-- [ ] `ingestion` + `tenant` application layers (service classes + port interfaces)
+- [ ] `tenant` application layer (service class + port interfaces)
 - [ ] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql`
 - [ ] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis cache
 - [ ] Kafka wiring — producer (Ingest API), Consumer Group A + B
@@ -1115,6 +1116,15 @@ io.ledge/
 │   │   ├── ContextHash.kt    ← value object (SHA-256)
 │   │   └── SchemaVersion.kt  ← value object (positive Int)
 │   ├── application/
+│   │   ├── IngestionService.kt       ← application service
+│   │   ├── CreateSessionCommand.kt   ← command DTO
+│   │   ├── IngestEventCommand.kt     ← command DTO
+│   │   ├── IngestEventResult.kt      ← result DTO
+│   │   └── port/
+│   │       ├── SessionRepository.kt      ← driven port
+│   │       ├── MemoryEventPublisher.kt   ← driven port (Kafka write)
+│   │       ├── DomainEventPublisher.kt   ← driven port (domain events)
+│   │       └── MemoryEventQuery.kt       ← driven port (CQRS read)
 │   ├── infrastructure/
 │   └── api/
 ├── memory/                   ← read path, reconstruction, diffing
@@ -1127,6 +1137,11 @@ io.ledge/
 │   │   ├── ContextDiff.kt    ← value object (computed)
 │   │   └── MemoryEntryDelta.kt
 │   ├── application/
+│   │   ├── MemoryService.kt          ← application service
+│   │   └── port/
+│   │       ├── MemorySnapshotRepository.kt  ← driven port
+│   │       ├── MemoryEntryRepository.kt     ← driven port
+│   │       └── DomainEventPublisher.kt      ← driven port
 │   ├── infrastructure/
 │   └── api/
 └── tenant/                   ← identity, access, admin
