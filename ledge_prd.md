@@ -835,9 +835,9 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 - [x] `memory` application layer — `MemoryService` + port interfaces (`MemorySnapshotRepository`, `MemoryEntryRepository`, `DomainEventPublisher`)
 - [x] Infrastructure & test environment — docker-compose, observability config, `.env.example`, Testcontainers smoke test
 - [x] `ingestion` application layer — `IngestionService` + port interfaces (`SessionRepository`, `MemoryEventPublisher`, `DomainEventPublisher`, `MemoryEventQuery`) + command/result DTOs
+- [x] `tenant` application layer — `TenantService` + port interfaces (`TenantRepository`, `AgentRepository`, `DomainEventPublisher`) + command DTOs (`CreateTenantCommand`, `RegisterAgentCommand`)
 
 **Next**
-- [ ] `tenant` application layer (service class + port interfaces)
 - [ ] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql`
 - [ ] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis cache
 - [ ] Kafka wiring — producer (Ingest API), Consumer Group A + B
@@ -1150,6 +1150,13 @@ io.ledge/
     │   ├── TenantStatus.kt
     │   └── Agent.kt           ← entity
     ├── application/
+    │   ├── TenantService.kt           ← application service
+    │   ├── CreateTenantCommand.kt     ← command DTO
+    │   ├── RegisterAgentCommand.kt    ← command DTO
+    │   └── port/
+    │       ├── TenantRepository.kt        ← driven port
+    │       ├── AgentRepository.kt         ← driven port
+    │       └── DomainEventPublisher.kt    ← driven port (domain events)
     ├── infrastructure/
     └── api/
 ```

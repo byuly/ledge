@@ -12,6 +12,10 @@ import io.ledge.memory.domain.MemoryEntry
 import io.ledge.memory.domain.MemoryEntryType
 import io.ledge.memory.domain.MemorySnapshot
 import io.ledge.shared.*
+import io.ledge.tenant.application.RegisterAgentCommand
+import io.ledge.tenant.domain.Agent
+import io.ledge.tenant.domain.Tenant
+import io.ledge.tenant.domain.TenantStatus
 import java.time.Instant
 
 /**
@@ -90,6 +94,46 @@ object TestFixtures {
         snapshotHash = snapshotHash,
         entries = entries,
         triggerEventId = triggerEventId
+    )
+
+    fun tenant(
+        id: TenantId = tenantId(),
+        name: String = "Test Tenant",
+        apiKeyHash: String = VALID_SHA256,
+        status: TenantStatus = TenantStatus.ACTIVE,
+        createdAt: Instant = Instant.now()
+    ): Tenant = Tenant(
+        id = id,
+        name = name,
+        apiKeyHash = apiKeyHash,
+        status = status,
+        createdAt = createdAt
+    )
+
+    fun agent(
+        id: AgentId = agentId(),
+        tenantId: TenantId = tenantId(),
+        name: String = "Test Agent",
+        description: String = "A test agent",
+        metadata: Map<String, String> = emptyMap(),
+        createdAt: Instant = Instant.now()
+    ): Agent = Agent(
+        id = id,
+        tenantId = tenantId,
+        name = name,
+        description = description,
+        createdAt = createdAt,
+        metadata = metadata
+    )
+
+    fun registerAgentCommand(
+        name: String = "Test Agent",
+        description: String = "A test agent",
+        metadata: Map<String, String> = emptyMap()
+    ): RegisterAgentCommand = RegisterAgentCommand(
+        name = name,
+        description = description,
+        metadata = metadata
     )
 
     fun memoryEntry(

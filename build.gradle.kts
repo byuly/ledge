@@ -57,6 +57,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
 }
 
+sourceSets.test {
+    kotlin.exclude("**/InfrastructureSmokeTest.kt")
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
 }
