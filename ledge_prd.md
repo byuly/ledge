@@ -300,134 +300,25 @@ USER appuser
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
-
-`build.gradle.kts` — pin JVM toolchain and key dependencies:
-
-```kotlin
-plugins {
-    kotlin("jvm") version "2.0.0"
-    kotlin("plugin.spring") version "2.0.0"
-    id("org.springframework.boot") version "3.2.5"
-    id("io.spring.dependency-management") version "1.1.5"
-}
-
-kotlin {
-    jvmToolchain(21)
-}
-
-dependencies {
-    // Core
-    implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("org.springframework.boot:spring-boot-starter-data-r2dbc")
-    implementation("org.springframework.kafka:spring-kafka")
-
-    // Observability
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("io.micrometer:micrometer-registry-prometheus")
-
-    // Database
-    implementation("org.postgresql:r2dbc-postgresql")
-    implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
-
-    // Cache
-    implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
-
-    // Serialization
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-
-    // Testing
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("io.projectreactor:reactor-test")
-}
-```
-
 ---
 
 ### 4.6 Docker Compose — Full Stack
 
-`docker-compose.yml` brings up the complete local environment in one command: `docker compose up`.
+See [`docker-compose.yml`](./docker-compose.yml). Run with:
 
-```yaml
-services:
-
-  ledge:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/ledge
-      SPRING_R2DBC_USERNAME: ml_user
-      SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD}
-      SPRING_DATA_REDIS_HOST: redis
-      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/ledge
-    depends_on:
-      - kafka
-      - postgres
-      - redis
-      - clickhouse
-
-  kafka:
-    image: confluentinc/cp-kafka:7.6.0
-    ports:
-      - "9092:9092"
-    environment:
-      KAFKA_NODE_ID: 1
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      CLUSTER_ID: ledge-local
-
-  postgres:
-    image: postgres:16-alpine
-    ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_DB: ledge
-      POSTGRES_USER: ml_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./infra/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  clickhouse:
-    image: clickhouse/clickhouse-server:24.3
-    ports:
-      - "8123:8123"
-      - "9000:9000"
-    volumes:
-      - clickhouse_data:/var/lib/clickhouse
-      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
-
-  grafana:
-    image: grafana/grafana:10.4.0
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./observability/grafana/provisioning:/etc/grafana/provisioning
-
-volumes:
-  postgres_data:
-  clickhouse_data:
-  grafana_data:
 ```
+docker compose up
+```
+
+**Services:** `ledge` (app), `kafka` (KRaft mode), `postgres`, `redis`, `clickhouse`, `prometheus`, `grafana`
+
+**Requirements:**
+- Copy `.env.example` → `.env` and set `POSTGRES_PASSWORD` and `GRAFANA_PASSWORD` before starting
+- All services have healthchecks; `ledge` depends on all four infrastructure services
+- Prometheus scrape config: `observability/prometheus.yml`
+- Grafana datasource (Prometheus) auto-provisioned via `observability/grafana/provisioning/datasources/`
+- Grafana available at `localhost:3000`; Prometheus at `localhost:9090`
+- Database init SQL (`infra/sql/init.sql`, `infra/clickhouse/init.sql`) will be mounted once schema is defined
 
 ---
 
@@ -631,7 +522,7 @@ Ingest a single memory event. Returns immediately (`202 Accepted`). Actual persi
 {
   "sessionId": "uuid",
   "agentId": "uuid",
-  "eventType": "INFERENCE_COMPLETED",
+  "eventType": "ASSISTANT_MESSAGE",
   "occurredAt": "2024-01-16T14:47:00Z",
   "payload": { "prompt": "...", "response": "...", "modelId": "gpt-4o" },
   "contextHash": "sha256...",
@@ -929,9 +820,28 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 - [ ] Tenant + Agent management endpoints
 - [ ] GDPR tenant purge: `DELETE /tenants/{tenantId}`
 - [ ] Kotlin/Java SDK with fluent builder API
-- [ ] `docker-compose.yml` with all dependencies (Kafka, ClickHouse, PostgreSQL, Redis)
+- [x] `docker-compose.yml` with all dependencies (Kafka, ClickHouse, PostgreSQL, Redis, Prometheus, Grafana)
 - [ ] API key authentication (bcrypt hashed, Redis rate limiting)
 - [ ] Basic README with integration guide (30-minute onboarding target)
+
+### 9.3 Implementation Progress
+
+**Done**
+- [x] Shared kernel — typed IDs (`TenantId`, `AgentId`, `SessionId`, `EventId`, `SnapshotId`, `EntryId`), `DomainEvent` sealed interface
+- [x] `ingestion` domain — `Session` aggregate, `MemoryEvent`, `EventType`, `ContextHash`, `SchemaVersion`, `SessionStatus`
+- [x] `memory` domain — `MemorySnapshot` aggregate, `MemoryEntry`, `ContextDiff`, `MemoryEntryDelta`, `Confidence`, `ContentHash`, `MemoryEntryType`
+- [x] `tenant` domain — `Tenant` aggregate, `Agent`, `TenantStatus`
+- [x] Domain-level test coverage (all invariants and value object validations)
+- [x] `memory` application layer — `MemoryService` + port interfaces (`MemorySnapshotRepository`, `MemoryEntryRepository`, `DomainEventPublisher`)
+- [x] Infrastructure & test environment — docker-compose, observability config, `.env.example`, Testcontainers smoke test
+
+**Next**
+- [ ] `ingestion` + `tenant` application layers (service classes + port interfaces)
+- [ ] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql`
+- [ ] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis cache
+- [ ] Kafka wiring — producer (Ingest API), Consumer Group A + B
+- [ ] HTTP API layer — WebFlux controllers for all §6 endpoints
+- [ ] Auth middleware — `X-API-Key` resolution
 
 ### 9.2 v2 — Backlog
 
