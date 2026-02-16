@@ -1105,7 +1105,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 3. [x] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis context cache
 4. [x] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B
 5. [x] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
-6. [ ] HTTP API — read path: context query, context diff, audit trail endpoints
+6. [x] HTTP API — read path: context query, context diff, audit trail endpoints
 7. [ ] Auth middleware — `X-API-Key` resolution, rate limiting
 8. [ ] SDK — Kotlin/Java cognitive lifecycle interceptors (auto-capture + explicit instrumentation)
 
@@ -1310,6 +1310,7 @@ Grafana runs at `localhost:3000` (default credentials via `GRAFANA_PASSWORD` env
 | 8 | Should `CONTEXT_ASSEMBLED` payloads be compressed in ClickHouse? | **Open** | Context windows can be large (100K+ tokens). ClickHouse supports `CODEC(ZSTD)` on String columns. Needs benchmarking for query-time decompression cost vs storage savings. |
 | 9 | SDK auto-capture vs explicit instrumentation? | **Decided** | Both. The SDK provides automatic interceptors for common frameworks (e.g. Spring AI, LangChain4j) and explicit API for manual instrumentation. Auto-capture for convenience, explicit for precision. |
 | 10 | Should `REASONING_TRACE` be captured as streaming chunks or buffered? | **Open** | Streaming captures partial thoughts if inference fails mid-stream, but adds complexity. Buffered is simpler but loses data on failure. Candidate: buffered for v1, streaming option in v2. |
+| 11 | Redis cache optimization for context queries | **Backlog** | PRD §4.4 describes Redis cache check before ClickHouse for context queries. Currently the read path goes directly to ClickHouse via `ObservationEventQuery`. Redis is already populated by the Kafka consumer (Phase 4). Optimizing the query path to check Redis first is a performance enhancement, not a correctness requirement. Follow-up performance task. |
 
 ---
 
