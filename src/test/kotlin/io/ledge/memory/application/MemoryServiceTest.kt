@@ -1,7 +1,12 @@
 package io.ledge.memory.application
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.ledge.TestFixtures
-import io.ledge.memory.domain.MemoryEntryType
+import io.ledge.ingestion.domain.ContextHash
+import io.ledge.ingestion.domain.EventType
+import io.ledge.ingestion.domain.MemoryEvent
+import io.ledge.ingestion.domain.SchemaVersion
+import io.ledge.memory.domain.ContentBlock
 import io.ledge.shared.DomainEvent
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -17,14 +22,18 @@ class MemoryServiceTest {
     private lateinit var snapshotRepo: FakeMemorySnapshotRepository
     private lateinit var entryRepo: FakeMemoryEntryRepository
     private lateinit var eventPublisher: FakeDomainEventPublisher
+    private lateinit var observationQuery: FakeObservationEventQuery
     private lateinit var service: MemoryService
+
+    private val objectMapper = jacksonObjectMapper()
 
     @BeforeEach
     fun setUp() {
         snapshotRepo = FakeMemorySnapshotRepository()
         entryRepo = FakeMemoryEntryRepository()
         eventPublisher = FakeDomainEventPublisher()
-        service = MemoryService(snapshotRepo, entryRepo, eventPublisher)
+        observationQuery = FakeObservationEventQuery()
+        service = MemoryService(snapshotRepo, entryRepo, eventPublisher, observationQuery)
     }
 
     // --- createSnapshot ---
@@ -295,4 +304,160 @@ class MemoryServiceTest {
         assertNotNull(service.getLatestSnapshot(agentId, tenantB))
         assertEquals(snapshotB.id, service.getLatestSnapshot(agentId, tenantB)!!.id)
     }
+
+    // --- getContextAtTime ---
+
+    @Test
+    fun `getContextAtTime returns null when no events exist`() {
+        assertNull(
+            service.getContextAtTime(TestFixtures.agentId(), TestFixtures.tenantId(), Instant.now())
+        )
+    }
+
+    @Test
+    fun `getContextAtTime returns latest CONTEXT_ASSEMBLED before timestamp`() {
+        val agentId = TestFixtures.agentId()
+        val tenantId = TestFixtures.tenantId()
+        val t1 = Instant.parse("2025-01-01T00:00:00Z")
+        val t2 = Instant.parse("2025-01-01T01:00:00Z")
+
+        val event = contextAssembledEvent(agentId, tenantId, t1)
+        observationQuery.addEvent(event)
+
+        val result = service.getContextAtTime(agentId, tenantId, t2)
+
+        assertNotNull(result)
+        assertEquals(event.id, result!!.id)
+    }
+
+    @Test
+    fun `getContextAtTime returns null when all events are after timestamp`() {
+        val agentId = TestFixtures.agentId()
+        val tenantId = TestFixtures.tenantId()
+        val t1 = Instant.parse("2025-01-01T01:00:00Z")
+        val tBefore = Instant.parse("2025-01-01T00:00:00Z")
+
+        observationQuery.addEvent(contextAssembledEvent(agentId, tenantId, t1))
+
+        assertNull(service.getContextAtTime(agentId, tenantId, tBefore))
+    }
+
+    // --- getAuditTrail ---
+
+    @Test
+    fun `getAuditTrail returns events in sequence order`() {
+        val sessionId = TestFixtures.sessionId()
+        val tenantId = TestFixtures.tenantId()
+        val agentId = TestFixtures.agentId()
+
+        val e1 = memoryEvent(sessionId, agentId, tenantId, EventType.USER_INPUT, 1L)
+        val e2 = memoryEvent(sessionId, agentId, tenantId, EventType.AGENT_OUTPUT, 2L)
+        observationQuery.addEvent(e2)
+        observationQuery.addEvent(e1)
+
+        val trail = service.getAuditTrail(sessionId, tenantId)
+
+        assertEquals(2, trail.size)
+        assertEquals(1L, trail[0].sequenceNumber)
+        assertEquals(2L, trail[1].sequenceNumber)
+    }
+
+    @Test
+    fun `getAuditTrail returns empty for no events`() {
+        assertTrue(
+            service.getAuditTrail(TestFixtures.sessionId(), TestFixtures.tenantId()).isEmpty()
+        )
+    }
+
+    // --- diffContextWindows ---
+
+    @Test
+    fun `diffContextWindows throws when no event found`() {
+        val agentId = TestFixtures.agentId()
+        val tenantId = TestFixtures.tenantId()
+        val t1 = Instant.parse("2025-01-01T00:00:00Z")
+        val t2 = Instant.parse("2025-01-01T01:00:00Z")
+
+        assertThrows<IllegalArgumentException> {
+            service.diffContextWindows(agentId, tenantId, t1, t2)
+        }
+    }
+
+    @Test
+    fun `diffContextWindows computes added, removed, and modified blocks`() {
+        val agentId = TestFixtures.agentId()
+        val tenantId = TestFixtures.tenantId()
+        val t1 = Instant.parse("2025-01-01T00:00:00Z")
+        val t2 = Instant.parse("2025-01-01T01:00:00Z")
+        val tQuery1 = Instant.parse("2025-01-01T00:30:00Z")
+        val tQuery2 = Instant.parse("2025-01-01T01:30:00Z")
+
+        val fromBlocks = listOf(
+            ContentBlock("system", "You are helpful", 3, null),
+            ContentBlock("user", "Hello", 1, null)
+        )
+        val toBlocks = listOf(
+            ContentBlock("system", "You are very helpful", 4, null),
+            ContentBlock("document", "New document", 2, "rag")
+        )
+
+        val fromEvent = contextAssembledEvent(agentId, tenantId, t1, objectMapper.writeValueAsString(fromBlocks))
+        val toEvent = contextAssembledEvent(agentId, tenantId, t2, objectMapper.writeValueAsString(toBlocks))
+        observationQuery.addEvent(fromEvent)
+        observationQuery.addEvent(toEvent)
+
+        val diff = service.diffContextWindows(agentId, tenantId, tQuery1, tQuery2)
+
+        assertEquals(fromEvent.id, diff.fromEventId)
+        assertEquals(toEvent.id, diff.toEventId)
+        assertEquals(1, diff.addedBlocks.size)
+        assertEquals("document", diff.addedBlocks[0].blockType)
+        assertEquals(1, diff.removedBlocks.size)
+        assertEquals("user", diff.removedBlocks[0].blockType)
+        assertEquals(1, diff.modifiedBlocks.size)
+        assertEquals("system", diff.modifiedBlocks[0].blockType)
+        assertEquals("You are helpful", diff.modifiedBlocks[0].before.content)
+        assertEquals("You are very helpful", diff.modifiedBlocks[0].after.content)
+    }
+
+    // --- Test helpers ---
+
+    private fun contextAssembledEvent(
+        agentId: io.ledge.shared.AgentId,
+        tenantId: io.ledge.shared.TenantId,
+        occurredAt: Instant,
+        payload: String = "[]"
+    ): MemoryEvent = MemoryEvent(
+        id = TestFixtures.eventId(),
+        sessionId = TestFixtures.sessionId(),
+        agentId = agentId,
+        tenantId = tenantId,
+        eventType = EventType.CONTEXT_ASSEMBLED,
+        sequenceNumber = 1L,
+        occurredAt = occurredAt,
+        payload = payload,
+        contextHash = null,
+        parentEventId = null,
+        schemaVersion = SchemaVersion(1)
+    )
+
+    private fun memoryEvent(
+        sessionId: io.ledge.shared.SessionId,
+        agentId: io.ledge.shared.AgentId,
+        tenantId: io.ledge.shared.TenantId,
+        eventType: EventType,
+        sequenceNumber: Long
+    ): MemoryEvent = MemoryEvent(
+        id = TestFixtures.eventId(),
+        sessionId = sessionId,
+        agentId = agentId,
+        tenantId = tenantId,
+        eventType = eventType,
+        sequenceNumber = sequenceNumber,
+        occurredAt = Instant.now(),
+        payload = "{}",
+        contextHash = null,
+        parentEventId = null,
+        schemaVersion = SchemaVersion(1)
+    )
 }

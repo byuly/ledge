@@ -1113,7 +1113,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 - [x] `tenant` application layer — `TenantService` + port interfaces (`TenantRepository`, `AgentRepository`, `DomainEventPublisher`) + command DTOs (`CreateTenantCommand`, `RegisterAgentCommand`)
 
 **Next — 8 Phases**
-1. [ ] Domain model update — EventType enum (observation taxonomy), payload schemas, `ObservationDiff` + `ContentBlock` value objects
+1. [x] Domain model update — EventType enum (observation taxonomy), payload schemas, `ObservationDiff` + `ContentBlock` value objects
 2. [ ] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql` + `context_assembled_mv` materialized view
 3. [ ] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis context cache
 4. [ ] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B

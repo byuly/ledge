@@ -7,10 +7,13 @@ import io.ledge.ingestion.domain.SchemaVersion
 import io.ledge.ingestion.domain.Session
 import io.ledge.ingestion.domain.SessionStatus
 import io.ledge.memory.domain.Confidence
+import io.ledge.memory.domain.ContentBlock
+import io.ledge.memory.domain.ContentBlockDelta
 import io.ledge.memory.domain.ContentHash
 import io.ledge.memory.domain.MemoryEntry
 import io.ledge.memory.domain.MemoryEntryType
 import io.ledge.memory.domain.MemorySnapshot
+import io.ledge.memory.domain.ObservationDiff
 import io.ledge.shared.*
 import io.ledge.tenant.application.RegisterAgentCommand
 import io.ledge.tenant.domain.Agent
@@ -60,7 +63,7 @@ object TestFixtures {
 
     fun ingestEventCommand(
         sessionId: SessionId = sessionId(),
-        eventType: EventType = EventType.USER_MESSAGE,
+        eventType: EventType = EventType.USER_INPUT,
         payload: String = """{"text": "hello"}""",
         occurredAt: Instant = Instant.now(),
         contextHash: ContextHash? = null,
@@ -158,5 +161,41 @@ object TestFixtures {
         expiresAt = expiresAt,
         accessCount = accessCount,
         lastAccessedAt = lastAccessedAt
+    )
+
+    fun contentBlock(
+        blockType: String = "user",
+        content: String = "Hello, world!",
+        tokenCount: Int = 3,
+        source: String? = null
+    ): ContentBlock = ContentBlock(
+        blockType = blockType,
+        content = content,
+        tokenCount = tokenCount,
+        source = source
+    )
+
+    fun contentBlockDelta(
+        blockType: String = "user",
+        before: ContentBlock = contentBlock(blockType = blockType, content = "before"),
+        after: ContentBlock = contentBlock(blockType = blockType, content = "after")
+    ): ContentBlockDelta = ContentBlockDelta(
+        blockType = blockType,
+        before = before,
+        after = after
+    )
+
+    fun observationDiff(
+        fromEventId: EventId = eventId(),
+        toEventId: EventId = eventId(),
+        addedBlocks: List<ContentBlock> = emptyList(),
+        removedBlocks: List<ContentBlock> = emptyList(),
+        modifiedBlocks: List<ContentBlockDelta> = emptyList()
+    ): ObservationDiff = ObservationDiff(
+        fromEventId = fromEventId,
+        toEventId = toEventId,
+        addedBlocks = addedBlocks,
+        removedBlocks = removedBlocks,
+        modifiedBlocks = modifiedBlocks
     )
 }

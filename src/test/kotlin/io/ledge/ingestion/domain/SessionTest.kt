@@ -29,7 +29,7 @@ class SessionTest {
 
         val event = session.ingest(
             eventId = eventId,
-            eventType = EventType.USER_MESSAGE,
+            eventType = EventType.USER_INPUT,
             payload = """{"text": "hello"}""",
             contextHash = contextHash
         )
@@ -39,7 +39,7 @@ class SessionTest {
         assertEquals(session.id, event.sessionId)
         assertEquals(session.agentId, event.agentId)
         assertEquals(session.tenantId, event.tenantId)
-        assertEquals(EventType.USER_MESSAGE, event.eventType)
+        assertEquals(EventType.USER_INPUT, event.eventType)
         assertEquals("""{"text": "hello"}""", event.payload)
         assertEquals(contextHash, event.contextHash)
         assertNull(event.parentEventId)
@@ -49,9 +49,9 @@ class SessionTest {
     fun `ingest assigns monotonically increasing sequence numbers`() {
         val session = activeSession()
 
-        val e1 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_MESSAGE, payload = "1")
-        val e2 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.ASSISTANT_MESSAGE, payload = "2")
-        val e3 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.TOOL_CALL, payload = "3")
+        val e1 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_INPUT, payload = "1")
+        val e2 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.AGENT_OUTPUT, payload = "2")
+        val e3 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.TOOL_INVOKED, payload = "3")
 
         assertEquals(1L, e1.sequenceNumber)
         assertEquals(2L, e2.sequenceNumber)
@@ -64,7 +64,7 @@ class SessionTest {
         session.complete()
 
         assertThrows<IllegalStateException> {
-            session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_MESSAGE, payload = "x")
+            session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_INPUT, payload = "x")
         }
     }
 
@@ -74,7 +74,7 @@ class SessionTest {
         session.abandon()
 
         assertThrows<IllegalStateException> {
-            session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_MESSAGE, payload = "x")
+            session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_INPUT, payload = "x")
         }
     }
 
@@ -119,8 +119,8 @@ class SessionTest {
         val session = activeSession()
         assertTrue(session.events.isEmpty())
 
-        session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_MESSAGE, payload = "a")
-        session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.ASSISTANT_MESSAGE, payload = "b")
+        session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_INPUT, payload = "a")
+        session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.AGENT_OUTPUT, payload = "b")
 
         assertEquals(2, session.events.size)
         assertEquals("a", session.events[0].payload)
