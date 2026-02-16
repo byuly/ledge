@@ -52,6 +52,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./infra/sql/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ml_user -d ledge"]
       interval: 10s
@@ -75,6 +76,7 @@ services:
       - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
+      - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
       interval: 10s

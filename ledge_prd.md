@@ -330,7 +330,7 @@ docker compose up
 - Prometheus scrape config: `observability/prometheus.yml`
 - Grafana datasource (Prometheus) auto-provisioned via `observability/grafana/provisioning/datasources/`
 - Grafana available at `localhost:3000`; Prometheus at `localhost:9090`
-- Database init SQL (`infra/sql/init.sql`, `infra/clickhouse/init.sql`) will be mounted once schema is defined
+- Database init SQL (`infra/sql/init.sql`, `infra/clickhouse/init.sql`) mounted via `docker-entrypoint-initdb.d` for auto-initialization on first startup
 
 ---
 
@@ -1018,8 +1018,8 @@ ORDER BY (tenant_id, agent_id, snapshot_id, entry_id);
 CREATE TABLE tenants (
     tenant_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        TEXT NOT NULL,
-    api_key     TEXT NOT NULL UNIQUE,   -- stored as bcrypt hash
-    status      TEXT NOT NULL DEFAULT 'ACTIVE',
+    api_key_hash TEXT NOT NULL UNIQUE,   -- bcrypt hash
+    status      TEXT NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | SUSPENDED | DELETED
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -1027,7 +1027,7 @@ CREATE TABLE agents (
     agent_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id   UUID NOT NULL REFERENCES tenants(tenant_id),
     name        TEXT NOT NULL,
-    description TEXT,
+    description TEXT NOT NULL DEFAULT '',
     metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -1038,26 +1038,13 @@ CREATE TABLE sessions (
     tenant_id           UUID NOT NULL REFERENCES tenants(tenant_id),
     started_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ended_at            TIMESTAMPTZ,
-    status              TEXT NOT NULL DEFAULT 'ACTIVE',
-    -- memory_snapshot_id UUID,  -- v2: Knowledge Layer (linked snapshot on session end)
+    status              TEXT NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | COMPLETED | ABANDONED
+    next_sequence_number BIGINT NOT NULL DEFAULT 1,
     metadata            JSONB DEFAULT '{}'
 );
 
 -- v2: Knowledge Layer — live memory entries managed by knowledge extraction pipeline
--- CREATE TABLE memory_entries_live (
---     entry_id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
---     agent_id          UUID NOT NULL REFERENCES agents(agent_id),
---     tenant_id         UUID NOT NULL REFERENCES tenants(tenant_id),
---     content           TEXT NOT NULL,
---     content_hash      TEXT NOT NULL,
---     entry_type        TEXT NOT NULL,
---     confidence        FLOAT NOT NULL,
---     source_event_id   UUID NOT NULL,
---     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
---     expires_at        TIMESTAMPTZ,
---     access_count      INT NOT NULL DEFAULT 0,
---     last_accessed_at  TIMESTAMPTZ
--- );
+-- CREATE TABLE memory_entries_live ( ... );
 
 -- Indexes
 CREATE INDEX idx_sessions_agent_tenant ON sessions(agent_id, tenant_id);
@@ -1114,7 +1101,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 
 **Next — 8 Phases**
 1. [x] Domain model update — EventType enum (observation taxonomy), payload schemas, `ObservationDiff` + `ContentBlock` value objects
-2. [ ] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql` + `context_assembled_mv` materialized view
+2. [x] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql` + `context_assembled_mv` materialized view
 3. [ ] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis context cache
 4. [ ] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B
 5. [ ] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
@@ -1477,7 +1464,11 @@ Domain value objects enforce business rules at construction time. They are imple
 | `Confidence` | `memory` | Must be in range 0.0..1.0 |
 | `ContentHash` | `memory` | Must be valid SHA-256 hex string (64 lowercase hex chars) |
 
-### 12.8 Design Rules for Domain Layer
+### 12.8 Storage-Layer Mapping Conventions
+
+**ClickHouse `context_hash`: empty string as null.** The domain model (`MemoryEvent.contextHash: ContextHash?`) is nullable, but the ClickHouse column is `String` (not `Nullable(String)`). This is a ClickHouse performance best practice — `Nullable` adds a separate column bitmap and disables some optimizations. The adapter layer maps `null` to empty string on write and empty string back to `null` on read. This convention applies only to the ClickHouse storage layer; PostgreSQL columns use standard SQL `NULL` semantics.
+
+### 12.9 Design Rules for Domain Layer
 
 1. **No Spring annotations** — domain layer is pure Kotlin. No `@Entity`, `@Component`, `@Repository`, etc.
 2. **Typed IDs everywhere** — `TenantId` not `UUID`. Shared kernel types from `io.ledge.shared`.
