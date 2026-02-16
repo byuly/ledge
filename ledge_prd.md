@@ -1102,7 +1102,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 **Next — 8 Phases**
 1. [x] Domain model update — EventType enum (observation taxonomy), payload schemas, `ObservationDiff` + `ContentBlock` value objects
 2. [x] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql` + `context_assembled_mv` materialized view
-3. [ ] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis context cache
+3. [x] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis context cache
 4. [ ] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B
 5. [ ] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
 6. [ ] HTTP API — read path: context query, context diff, audit trail endpoints
@@ -1475,3 +1475,15 @@ Domain value objects enforce business rules at construction time. They are imple
 3. **Aggregate roots enforce invariants** — `Session.ingest()` checks status. `Tenant.suspend()` checks valid transition. These are not anemic data classes.
 4. **Value objects validate on construction** — `Confidence(1.5f)` throws, `ContextHash("")` throws.
 5. **Immutable where the domain says immutable** — `MemoryEvent` is a data class with val-only properties. Aggregate roots use var for mutable state they manage (status, sequence counters).
+
+### 12.10 Infrastructure Adapter Patterns
+
+**R2DBC adapters** use `DatabaseClient` with manual SQL (not Spring Data `ReactiveCrudRepository`) because typed IDs and non-data-class aggregates are incompatible with entity mapping. All reactive calls bridge to synchronous via `.block()` — this is intentional for virtual thread compatibility (§1.2).
+
+**ClickHouse adapters** use JDBC `DriverManager` (HTTP protocol). No connection pool in v1 — ClickHouse HTTP JDBC is stateless. The `ClickHouseMemoryEventMapper` (shared object in `ingestion/infrastructure/`) is imported by `memory/infrastructure/` — infrastructure layers permit cross-context dependencies.
+
+**Redis context cache** (`io.ledge.infrastructure.RedisContextCache`) is infrastructure-only with no port interface. It is a cross-cutting concern consumed by both ingestion (Phase 4 Kafka consumer) and memory (Phase 6 query API). Uses `ReactiveStringRedisTemplate` with `.block()` bridging.
+
+**`ClickHouseMemoryEventWriter`** is infrastructure-only (no port interface). Phase 4's Kafka consumer will use it directly to persist events to ClickHouse.
+
+**`ObservationEventQuery`** queries the `memory_events` main table (not the materialized view) because the MV lacks columns needed for full `MemoryEvent` reconstruction (`sequence_number`, `parent_event_id`, `schema_version`).

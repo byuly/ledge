@@ -1,0 +1,55 @@
+package io.ledge.ingestion.infrastructure
+
+import io.ledge.ingestion.domain.MemoryEvent
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Component
+import java.sql.DriverManager
+import java.sql.Timestamp
+import java.sql.Types
+
+@Component
+class ClickHouseMemoryEventWriter(
+    @Value("\${clickhouse.url}") private val url: String
+) {
+
+    fun write(event: MemoryEvent) {
+        writeAll(listOf(event))
+    }
+
+    fun writeAll(events: List<MemoryEvent>) {
+        if (events.isEmpty()) return
+
+        DriverManager.getConnection(url).use { conn ->
+            conn.prepareStatement(INSERT_SQL).use { ps ->
+                for (event in events) {
+                    ps.setString(1, event.id.value.toString())
+                    ps.setString(2, event.sessionId.value.toString())
+                    ps.setString(3, event.agentId.value.toString())
+                    ps.setString(4, event.tenantId.value.toString())
+                    ps.setString(5, event.eventType.name)
+                    ps.setLong(6, event.sequenceNumber)
+                    ps.setTimestamp(7, Timestamp.from(event.occurredAt))
+                    ps.setString(8, event.payload)
+                    ps.setString(9, event.contextHash?.value ?: "")
+                    if (event.parentEventId != null) {
+                        ps.setString(10, event.parentEventId.value.toString())
+                    } else {
+                        ps.setNull(10, Types.OTHER)
+                    }
+                    ps.setInt(11, event.schemaVersion.value)
+                    ps.addBatch()
+                }
+                ps.executeBatch()
+            }
+        }
+    }
+
+    companion object {
+        private val INSERT_SQL = """
+            INSERT INTO ledge.memory_events
+            (event_id, session_id, agent_id, tenant_id, event_type, sequence_number,
+             occurred_at, payload, context_hash, parent_event_id, schema_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """.trimIndent()
+    }
+}

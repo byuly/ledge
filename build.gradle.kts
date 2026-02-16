@@ -31,7 +31,10 @@ dependencies {
 
     // Database
     implementation("org.postgresql:r2dbc-postgresql")
+    implementation("org.postgresql:postgresql")
     implementation("com.clickhouse:clickhouse-jdbc:0.6.0")
+    implementation("com.clickhouse:clickhouse-http-client:0.6.0")
+    implementation("org.apache.httpcomponents.client5:httpclient5:5.3.1")
 
     // Cache
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
@@ -61,6 +64,15 @@ sourceSets.test {
     kotlin.exclude("**/InfrastructureSmokeTest.kt")
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
+tasks.test {
+    useJUnitPlatform {
+        excludeTags("integration")
+    }
+}
+
+tasks.register<Test>("integrationTest") {
+    useJUnitPlatform {
+        includeTags("integration")
+    }
+    shouldRunAfter(tasks.test)
 }
