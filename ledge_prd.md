@@ -1104,7 +1104,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 2. [x] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql` + `context_assembled_mv` materialized view
 3. [x] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis context cache
 4. [x] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B
-5. [ ] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
+5. [x] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
 6. [ ] HTTP API — read path: context query, context diff, audit trail endpoints
 7. [ ] Auth middleware — `X-API-Key` resolution, rate limiting
 8. [ ] SDK — Kotlin/Java cognitive lifecycle interceptors (auto-capture + explicit instrumentation)
