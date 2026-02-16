@@ -1103,7 +1103,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 1. [x] Domain model update — EventType enum (observation taxonomy), payload schemas, `ObservationDiff` + `ContentBlock` value objects
 2. [x] Storage schema — `infra/sql/init.sql` (PostgreSQL), `infra/clickhouse/init.sql` + `context_assembled_mv` materialized view
 3. [x] Infrastructure adapters — R2DBC repos, ClickHouse writer, Redis context cache
-4. [ ] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B
+4. [x] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B
 5. [ ] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
 6. [ ] HTTP API — read path: context query, context diff, audit trail endpoints
 7. [ ] Auth middleware — `X-API-Key` resolution, rate limiting
@@ -1487,3 +1487,11 @@ Domain value objects enforce business rules at construction time. They are imple
 **`ClickHouseMemoryEventWriter`** is infrastructure-only (no port interface). Phase 4's Kafka consumer will use it directly to persist events to ClickHouse.
 
 **`ObservationEventQuery`** queries the `memory_events` main table (not the materialized view) because the MV lacks columns needed for full `MemoryEvent` reconstruction (`sequence_number`, `parent_event_id`, `schema_version`).
+
+**Kafka adapters** (`io.ledge.infrastructure.kafka`):
+- `KafkaMemoryEventPublisher` implements the `MemoryEventPublisher` port. Serializes `MemoryEvent` → `MemoryEventEnvelope` → JSON, sends to `ledge.events` with key = `tenantId` for partition isolation. Uses synchronous `.get()` on the send future to match the port's synchronous contract.
+- `MemoryEventEnvelope` is a JSON-serializable DTO (not a domain object). All typed IDs are flattened to strings. `occurredAt` is ISO-8601. Nullable fields (`contextHash`, `parentEventId`) serialize as JSON null.
+- Consumer Group A (`clickhouse-writer`): `ClickHouseWriterConsumer` deserializes envelope → `MemoryEvent`, delegates to `ClickHouseMemoryEventWriter.write()`.
+- Consumer Group B (`postgres-redis-writer`): `RedisWriterConsumer` filters for `CONTEXT_ASSEMBLED` events only, writes to `RedisContextCache` (session context + agent latest context). Redis writes are best-effort with try/catch.
+- Error handling: `DefaultErrorHandler` with `FixedBackOff(1000ms, 3 retries)` + `DeadLetterPublishingRecoverer` → `ledge.dlq`.
+- `LoggingDomainEventPublisher` implements all three bounded context `DomainEventPublisher` ports as a log-only stub (no Kafka topic for domain events in v1).
