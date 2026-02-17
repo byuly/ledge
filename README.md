@@ -8,8 +8,8 @@ Built for regulated environments where AI-assisted decisions require explainabil
 
 ```
 AI Agent App
-  └── ledge SDK (instruments agent, emits events)
-        └── POST /api/v1/events
+  └── ledge-sdk (instruments agent, emits events)
+        └── POST /api/v1/events/batch
               └── Kafka (immutable event log)
                     ├── Consumer A → ClickHouse (columnar audit storage)
                     └── Consumer B → PostgreSQL + Redis (session state + hot cache)
@@ -17,50 +17,65 @@ AI Agent App
 
 **Stack:** Kotlin · Spring Boot · Apache Kafka · ClickHouse · PostgreSQL · Redis · Prometheus · Grafana
 
-## Getting Started
+## Modules
 
-**1. Configure environment**
+| Module | Description |
+|---|---|
+| [`ledge-server`](ledge-server/README.md) | The backend — Spring Boot service, Kafka pipeline, HTTP API |
+| [`ledge-sdk`](ledge-sdk/README.md) | JVM client library — zero Spring dependency, works in any JVM app |
+| [`ledge-sdk-spring-ai`](ledge-sdk-spring-ai/README.md) | Spring AI integration — auto-captures `ChatClient` calls with no manual instrumentation |
+
+## Quick Start
+
+**1. Start the backend**
 
 ```bash
-cp .env.example .env
-# Edit .env — set POSTGRES_PASSWORD and GRAFANA_PASSWORD
-```
-
-**2. Start the full stack**
-
-```bash
+cp .env.example .env       # set POSTGRES_PASSWORD and GRAFANA_PASSWORD
 docker compose up
-```
-
-This starts: `ledge` (port 8080), Kafka, PostgreSQL, ClickHouse, Redis, Prometheus (port 9090), Grafana (port 3000).
-
-**3. Verify**
-
-```bash
 curl http://localhost:8080/actuator/health
 ```
 
+**2. Install the SDK locally**
+
+```bash
+./gradlew :ledge-sdk:publishToMavenLocal
+```
+
+**3. Instrument your agent**
+
+```kotlin
+val ledge = LedgeClient(LedgeConfig(baseUrl = "http://localhost:8080", apiKey = "your-key"))
+val session = ledge.createSession(agentId = "your-agent-uuid")
+
+session.userInput("What is the refund policy?")
+session.contextAssembled(listOf(ContentBlock("system", "You are helpful"), ContentBlock("user", "What is the refund policy?")))
+val infId = session.inferenceRequested("gpt-4o", "openai")
+session.inferenceCompleted("Our policy...", TokenUsage(50, 87, 137), infId)
+session.agentOutput("Our policy...", infId)
+
+ledge.completeSession(session.sessionId)
+ledge.close()
+```
+
+See [`ledge-server/README.md`](ledge-server/README.md) for infrastructure setup, tenant/agent provisioning, and the full API reference.
+
 ## Tests
 
-**Unit tests**
-
 ```bash
+# All modules
 ./gradlew test
+
+# Server only
+./gradlew :ledge-server:test
+./gradlew :ledge-server:integrationTest   # requires Docker
+
+# SDK
+./gradlew :ledge-sdk:test
+./gradlew :ledge-sdk-spring-ai:test
 ```
 
-**Integration tests** (requires Docker — spins up ClickHouse, PostgreSQL, Redis via Testcontainers)
+## Build
 
 ```bash
-./gradlew integrationTest
+./gradlew build
 ```
-
-## API
-
-| Endpoint | Description |
-|---|---|
-| `POST /api/v1/events` | Ingest a single observation event |
-| `POST /api/v1/events/batch` | Ingest up to 500 events |
-| `POST /api/v1/sessions` | Start a new session |
-| `GET /api/v1/agents/{agentId}/context?at=` | Point-in-time context window reconstruction |
-| `GET /api/v1/agents/{agentId}/context/diff?from=&to=` | Context window diff between two timestamps |
-| `GET /api/v1/sessions/{sessionId}/audit` | Full cognitive trace for a session |
