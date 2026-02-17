@@ -4,16 +4,40 @@ JVM client library for instrumenting AI agents with cognitive lifecycle observab
 
 ## Installation
 
+Not yet published to Maven Central. Install locally from source:
+
+```bash
+git clone https://github.com/your-org/ledge
+cd ledge
+./gradlew :ledge-sdk:publishToMavenLocal
+```
+
+Then add to your project:
+
 **Gradle (Kotlin DSL)**
 
 ```kotlin
-implementation("io.ledge:ledge-sdk:0.1.0-SNAPSHOT")
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.ledge:ledge-sdk:0.1.0-SNAPSHOT")
+}
 ```
 
 **Gradle (Groovy)**
 
 ```groovy
-implementation 'io.ledge:ledge-sdk:0.1.0-SNAPSHOT'
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'io.ledge:ledge-sdk:0.1.0-SNAPSHOT'
+}
 ```
 
 **Maven**

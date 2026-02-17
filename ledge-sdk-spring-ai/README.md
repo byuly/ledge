@@ -4,16 +4,42 @@ Spring AI auto-capture integration for ledge. Wraps `ChatClient` calls with a `C
 
 ## Installation
 
+Not yet published to Maven Central. Install locally from source:
+
+```bash
+git clone https://github.com/your-org/ledge
+cd ledge
+./gradlew :ledge-sdk:publishToMavenLocal :ledge-sdk-spring-ai:publishToMavenLocal
+```
+
+Then add to your project:
+
 **Gradle (Kotlin DSL)**
 
 ```kotlin
-implementation("io.ledge:ledge-sdk-spring-ai:0.1.0-SNAPSHOT")
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven { url = uri("https://repo.spring.io/milestone") }
+}
+
+dependencies {
+    implementation("io.ledge:ledge-sdk-spring-ai:0.1.0-SNAPSHOT")
+}
 ```
 
 **Gradle (Groovy)**
 
 ```groovy
-implementation 'io.ledge:ledge-sdk-spring-ai:0.1.0-SNAPSHOT'
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven { url 'https://repo.spring.io/milestone' }
+}
+
+dependencies {
+    implementation 'io.ledge:ledge-sdk-spring-ai:0.1.0-SNAPSHOT'
+}
 ```
 
 **Maven**
