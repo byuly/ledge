@@ -1083,7 +1083,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 - [ ] Session audit trail: `GET /sessions/{sessionId}/audit`
 - [ ] Tenant + Agent management endpoints
 - [ ] GDPR tenant purge: `DELETE /tenants/{tenantId}`
-- [ ] Kotlin/Java SDK with cognitive lifecycle interceptors
+- [x] Kotlin/Java SDK with cognitive lifecycle interceptors
 - [x] `docker-compose.yml` with all dependencies (Kafka, ClickHouse, PostgreSQL, Redis, Prometheus, Grafana)
 - [x] API key authentication (SHA-256 hashed, Redis rate limiting)
 - [ ] Basic README with integration guide (30-minute onboarding target)
@@ -1109,7 +1109,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 5. [x] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
 6. [x] HTTP API — read path: context query, context diff, audit trail endpoints
 7. [x] Auth middleware — `X-API-Key` resolution, rate limiting
-8. [ ] SDK — Kotlin/Java cognitive lifecycle interceptors (auto-capture + explicit instrumentation)
+8. [x] SDK — Kotlin/Java cognitive lifecycle interceptors (auto-capture + explicit instrumentation)
 
 ### 9.2 v2 — Backlog
 
