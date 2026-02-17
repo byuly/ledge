@@ -589,7 +589,7 @@ data class MemoryEntryDelta(
 class Tenant(
     val id: TenantId,
     val name: String,
-    val apiKeyHash: String,           // bcrypt hash, used for SDK auth
+    val apiKeyHash: String,           // SHA-256 hash, used for SDK auth
     var status: TenantStatus,         // ACTIVE, SUSPENDED, DELETED
     val createdAt: Instant
 ) {
@@ -755,6 +755,8 @@ Error at any stage.
 ## 6. API Design
 
 All endpoints are REST over HTTP. All responses are JSON. All requests require an `X-API-Key` header scoped to a tenant. Tenant is inferred from the API key — never passed explicitly in request body.
+
+> **Auth middleware (`ApiKeyAuthFilter`):** External callers send `X-API-Key`. The filter resolves the key to a `Tenant` via SHA-256 hash lookup, validates tenant status, applies Redis rate limiting, then injects `X-Tenant-Id` as a synthetic request header. All controllers receive `X-Tenant-Id` from the middleware — they never see `X-API-Key` directly. Exempt paths (no auth required): `POST /api/v1/tenants`, `DELETE /api/v1/tenants/{tenantId}`, `/actuator/**`.
 
 Base URL: `/api/v1`
 
@@ -1018,7 +1020,7 @@ ORDER BY (tenant_id, agent_id, snapshot_id, entry_id);
 CREATE TABLE tenants (
     tenant_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name        TEXT NOT NULL,
-    api_key_hash TEXT NOT NULL UNIQUE,   -- bcrypt hash
+    api_key_hash TEXT NOT NULL UNIQUE,   -- SHA-256 hash
     status      TEXT NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | SUSPENDED | DELETED
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -1083,7 +1085,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 - [ ] GDPR tenant purge: `DELETE /tenants/{tenantId}`
 - [ ] Kotlin/Java SDK with cognitive lifecycle interceptors
 - [x] `docker-compose.yml` with all dependencies (Kafka, ClickHouse, PostgreSQL, Redis, Prometheus, Grafana)
-- [ ] API key authentication (bcrypt hashed, Redis rate limiting)
+- [x] API key authentication (SHA-256 hashed, Redis rate limiting)
 - [ ] Basic README with integration guide (30-minute onboarding target)
 
 ### 9.3 Implementation Progress
@@ -1106,7 +1108,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 4. [x] Kafka pipeline — `ledge.events` + `ledge.dlq` topics, producer, consumer groups A + B
 5. [x] HTTP API — write path: event ingestion, session management, tenant/agent endpoints
 6. [x] HTTP API — read path: context query, context diff, audit trail endpoints
-7. [ ] Auth middleware — `X-API-Key` resolution, rate limiting
+7. [x] Auth middleware — `X-API-Key` resolution, rate limiting
 8. [ ] SDK — Kotlin/Java cognitive lifecycle interceptors (auto-capture + explicit instrumentation)
 
 ### 9.2 v2 — Backlog
@@ -1154,7 +1156,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 ### 10.3 Security
 
 - All API requests authenticated via `X-API-Key` header (tenant-scoped)
-- API keys stored as bcrypt hashes in PostgreSQL
+- API keys stored as SHA-256 hashes in PostgreSQL
 - All Kafka topics partitioned by `tenantId` — no cross-tenant reads possible at the consumer level
 - ClickHouse and PostgreSQL queries always include `tenant_id` in WHERE clause — enforced at the repository layer, not the API layer
 - TLS required for all external communication in production
@@ -1311,6 +1313,7 @@ Grafana runs at `localhost:3000` (default credentials via `GRAFANA_PASSWORD` env
 | 9 | SDK auto-capture vs explicit instrumentation? | **Decided** | Both. The SDK provides automatic interceptors for common frameworks (e.g. Spring AI, LangChain4j) and explicit API for manual instrumentation. Auto-capture for convenience, explicit for precision. |
 | 10 | Should `REASONING_TRACE` be captured as streaming chunks or buffered? | **Open** | Streaming captures partial thoughts if inference fails mid-stream, but adds complexity. Buffered is simpler but loses data on failure. Candidate: buffered for v1, streaming option in v2. |
 | 11 | Redis cache optimization for context queries | **Backlog** | PRD §4.4 describes Redis cache check before ClickHouse for context queries. Currently the read path goes directly to ClickHouse via `ObservationEventQuery`. Redis is already populated by the Kafka consumer (Phase 4). Optimizing the query path to check Redis first is a performance enhancement, not a correctness requirement. Follow-up performance task. |
+| 12 | API key hashing algorithm: bcrypt vs SHA-256 | **Decided** | PRD §10.3 originally specified bcrypt. Changed to SHA-256 (Rule 4c — obvious, low-risk). `TenantRepository.findByApiKeyHash` uses a direct equality lookup (`WHERE api_key_hash = :hash`), which requires deterministic hashing. BCrypt is non-deterministic (salted) and cannot support O(1) index lookup. API keys are 256-bit random strings, not low-entropy passwords — bcrypt's brute-force resistance is irrelevant. SHA-256 is the industry standard for API keys (GitHub, Stripe, Heroku) and supports index lookup. No code changes to `TenantRepository`, `R2dbcTenantRepository`, or `Tenant` domain. |
 
 ---
 

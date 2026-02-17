@@ -39,3 +39,7 @@ spring:
     bootstrap-servers: localhost:9092
 clickhouse:
   url: jdbc:clickhouse://localhost:8123/ledge
+
+ledge:
+  rate-limit:
+    requests-per-minute: 1000
