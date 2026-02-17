@@ -2,12 +2,12 @@
 FROM eclipse-temurin:21-jdk-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN ./gradlew bootJar --no-daemon
+RUN ./gradlew :ledge-server:bootJar --no-daemon
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-COPY --from=builder /app/build/libs/*.jar app.jar
+COPY --from=builder /app/ledge-server/build/libs/*.jar app.jar
 
 # Non-root user for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
