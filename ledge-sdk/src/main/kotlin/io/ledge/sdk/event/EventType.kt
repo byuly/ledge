@@ -1,0 +1,13 @@
+package io.ledge.sdk.event
+
+enum class EventType {
+    CONTEXT_ASSEMBLED,
+    INFERENCE_REQUESTED,
+    REASONING_TRACE,
+    INFERENCE_COMPLETED,
+    USER_INPUT,
+    AGENT_OUTPUT,
+    TOOL_INVOKED,
+    TOOL_RESPONDED,
+    ERROR
+}
