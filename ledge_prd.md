@@ -1121,6 +1121,7 @@ All Redis values are JSON-serialized. TTLs are enforced strictly — no stale re
 - [ ] Memory decay / TTL-based eviction logic
 - [ ] Kubernetes Helm chart
 - [ ] Python, TypeScript, Go SDKs
+- [ ] Multi-provider support in `ledge-sdk` — built-in interceptors for OpenAI, Anthropic, Gemini, and LangChain4j using `compileOnly` deps; users bring whichever provider SDK they already have, no extra modules needed
 - [ ] Multi-agent shared memory spaces
 - [ ] Web dashboard for cognitive trace visualization
 - [ ] Managed cloud offering (auth, billing, provisioning)
