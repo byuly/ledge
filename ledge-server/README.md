@@ -25,10 +25,16 @@ cp .env.example .env
 
 Edit `.env` and set:
 
-```
+```bash
 POSTGRES_PASSWORD=your_pg_password
 GRAFANA_PASSWORD=your_grafana_password
+CLICKHOUSE_PASSWORD=your_clickhouse_password
+
+# Compute SHA256 hash of ClickHouse password
+CLICKHOUSE_PASSWORD_SHA256_HEX=$(echo -n "your_clickhouse_password" | shasum -a 256 | awk '{print $1}')
 ```
+
+> **Note:** ClickHouse requires the password hash, not the plaintext. The hash is automatically computed from `CLICKHOUSE_PASSWORD` in the example above.
 
 **2. Start the full stack**
 

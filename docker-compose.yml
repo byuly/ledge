@@ -5,12 +5,13 @@ services:
     ports:
       - "8080:8080"
     environment:
+      SPRING_PROFILES_ACTIVE: local
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       SPRING_R2DBC_URL: r2dbc:postgresql://postgres:5432/ledge
       SPRING_R2DBC_USERNAME: ml_user
       SPRING_R2DBC_PASSWORD: ${POSTGRES_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
-      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/ledge
+      CLICKHOUSE_URL: jdbc:clickhouse://clickhouse:8123/ledge?user=default&password=${CLICKHOUSE_PASSWORD:-}
     depends_on:
       - kafka
       - postgres
@@ -33,7 +34,7 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      CLUSTER_ID: ledge-local
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
     healthcheck:
@@ -74,9 +75,13 @@ services:
     ports:
       - "8123:8123"
       - "9000:9000"
+    environment:
+      # Compute SHA256 hash of password for ClickHouse
+      CLICKHOUSE_PASSWORD_SHA256_HEX: ${CLICKHOUSE_PASSWORD_SHA256_HEX:-}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./infra/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./infra/clickhouse/users.d/default-user.xml:/etc/clickhouse-server/users.d/default-user.xml
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8123/ping"]
       interval: 10s

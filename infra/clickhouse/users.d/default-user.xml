@@ -1,0 +1,14 @@
+<clickhouse>
+  <users>
+    <default>
+      <!-- Allow access from Docker network (for local dev)
+           In production, restrict to specific IPs -->
+      <networks>
+        <ip>::/0</ip>
+      </networks>
+      <!-- Remove default empty password and set SHA256 password from env -->
+      <password remove="1"/>
+      <password_sha256_hex from_env="CLICKHOUSE_PASSWORD_SHA256_HEX"/>
+    </default>
+  </users>
+</clickhouse>
