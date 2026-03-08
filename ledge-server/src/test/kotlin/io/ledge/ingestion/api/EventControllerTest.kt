@@ -41,7 +41,7 @@ class EventControllerTest {
     // --- POST /api/v1/events ---
 
     @Test
-    fun `ingestEvent returns 202 with eventId and sequenceNumber`() {
+    fun `ingestEvent returns 202 with eventId`() {
         val tenantId = TestFixtures.tenantId()
         val agentId = TestFixtures.agentId()
         val session = service.createSession(tenantId, CreateSessionCommand(agentId))
@@ -63,7 +63,6 @@ class EventControllerTest {
             .expectStatus().isAccepted
             .expectBody()
             .jsonPath("$.eventId").isNotEmpty
-            .jsonPath("$.sequenceNumber").isEqualTo(1)
     }
 
     @Test
@@ -94,7 +93,7 @@ class EventControllerTest {
         val tenantId = TestFixtures.tenantId()
         val agentId = TestFixtures.agentId()
         val session = service.createSession(tenantId, CreateSessionCommand(agentId))
-        service.completeSession(session.id, tenantId)
+        session.complete() // Simulate consumer-side completion
         val now = Instant.now().toString()
 
         client.post().uri("/api/v1/events")
@@ -152,8 +151,8 @@ class EventControllerTest {
             .expectBody()
             .jsonPath("$.accepted").isEqualTo(2)
             .jsonPath("$.results.length()").isEqualTo(2)
-            .jsonPath("$.results[0].sequenceNumber").isEqualTo(1)
-            .jsonPath("$.results[1].sequenceNumber").isEqualTo(2)
+            .jsonPath("$.results[0].eventId").isNotEmpty
+            .jsonPath("$.results[1].eventId").isNotEmpty
     }
 
     @Test

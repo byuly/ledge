@@ -43,7 +43,7 @@ class JdkHttpTransportTest {
                     aResponse()
                         .withStatus(202)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("""{"eventId":"evt-1","sequenceNumber":1}""")
+                        .withBody("""{"eventId":"evt-1"}""")
                 )
         )
 
@@ -71,7 +71,7 @@ class JdkHttpTransportTest {
                     aResponse()
                         .withStatus(202)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("""{"eventId":"evt-123","sequenceNumber":42}""")
+                        .withBody("""{"eventId":"evt-123"}""")
                 )
         )
 
@@ -82,7 +82,6 @@ class JdkHttpTransportTest {
         )
 
         assertEquals("evt-123", response.eventId)
-        assertEquals(42L, response.sequenceNumber)
     }
 
     @Test
@@ -160,7 +159,7 @@ class JdkHttpTransportTest {
                     aResponse()
                         .withStatus(202)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("""{"eventId":"evt-1","sequenceNumber":1}""")
+                        .withBody("""{"eventId":"evt-1"}""")
                 )
         )
 
@@ -182,7 +181,7 @@ class JdkHttpTransportTest {
                     aResponse()
                         .withStatus(202)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("""{"eventId":"evt-1","sequenceNumber":1}""")
+                        .withBody("""{"eventId":"evt-1"}""")
                 )
         )
 

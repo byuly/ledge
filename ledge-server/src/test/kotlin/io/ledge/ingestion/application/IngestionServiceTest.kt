@@ -2,9 +2,7 @@ package io.ledge.ingestion.application
 
 import io.ledge.TestFixtures
 import io.ledge.ingestion.domain.EventType
-import io.ledge.ingestion.domain.MemoryEvent
 import io.ledge.ingestion.domain.SessionStatus
-import io.ledge.shared.DomainEvent
 import io.ledge.shared.SessionId
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
@@ -102,30 +100,18 @@ class IngestionServiceTest {
     // --- completeSession ---
 
     @Test
-    fun `completeSession transitions to COMPLETED and sets endedAt`() {
-        val tenantId = TestFixtures.tenantId()
-        val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-
-        val completed = service.completeSession(session.id, tenantId)
-
-        assertEquals(SessionStatus.COMPLETED, completed.status)
-        assertNotNull(completed.endedAt)
-    }
-
-    @Test
-    fun `completeSession publishes exactly one SessionCompleted event`() {
+    fun `completeSession publishes SESSION_COMPLETED event to Kafka`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
 
         service.completeSession(session.id, tenantId)
 
-        assertEquals(1, domainEventPublisher.publishedEvents.size)
-        val event = domainEventPublisher.publishedEvents[0]
-        assertTrue(event is DomainEvent.SessionCompleted)
-        val sessionCompleted = event as DomainEvent.SessionCompleted
-        assertEquals(session.id, sessionCompleted.sessionId)
-        assertEquals(session.agentId, sessionCompleted.agentId)
-        assertEquals(tenantId, sessionCompleted.tenantId)
+        assertEquals(1, memoryEventPublisher.publishedEvents.size)
+        val event = memoryEventPublisher.publishedEvents[0]
+        assertEquals(EventType.SESSION_COMPLETED, event.eventType)
+        assertEquals(session.id, event.sessionId)
+        assertEquals(session.agentId, event.agentId)
+        assertEquals(tenantId, event.tenantId)
     }
 
     @Test
@@ -139,7 +125,8 @@ class IngestionServiceTest {
     fun `completeSession throws for already completed session`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-        service.completeSession(session.id, tenantId)
+        // Simulate consumer completing the session (as the real flow would)
+        session.complete()
 
         assertThrows<IllegalStateException> {
             service.completeSession(session.id, tenantId)
@@ -149,24 +136,16 @@ class IngestionServiceTest {
     // --- abandonSession ---
 
     @Test
-    fun `abandonSession transitions to ABANDONED and sets endedAt`() {
-        val tenantId = TestFixtures.tenantId()
-        val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-
-        val abandoned = service.abandonSession(session.id, tenantId)
-
-        assertEquals(SessionStatus.ABANDONED, abandoned.status)
-        assertNotNull(abandoned.endedAt)
-    }
-
-    @Test
-    fun `abandonSession does NOT publish domain event`() {
+    fun `abandonSession publishes SESSION_ABANDONED event to Kafka`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
 
         service.abandonSession(session.id, tenantId)
 
-        assertTrue(domainEventPublisher.publishedEvents.isEmpty())
+        assertEquals(1, memoryEventPublisher.publishedEvents.size)
+        val event = memoryEventPublisher.publishedEvents[0]
+        assertEquals(EventType.SESSION_ABANDONED, event.eventType)
+        assertEquals(session.id, event.sessionId)
     }
 
     @Test
@@ -179,7 +158,7 @@ class IngestionServiceTest {
     // --- ingestEvent ---
 
     @Test
-    fun `ingestEvent returns eventId and sequenceNumber`() {
+    fun `ingestEvent returns eventId`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
         val command = TestFixtures.ingestEventCommand(sessionId = session.id)
@@ -187,7 +166,6 @@ class IngestionServiceTest {
         val result = service.ingestEvent(tenantId, command)
 
         assertNotNull(result.eventId)
-        assertEquals(1L, result.sequenceNumber)
     }
 
     @Test
@@ -219,21 +197,6 @@ class IngestionServiceTest {
     }
 
     @Test
-    fun `ingestEvent assigns monotonic sequence numbers across calls`() {
-        val tenantId = TestFixtures.tenantId()
-        val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-        val command = TestFixtures.ingestEventCommand(sessionId = session.id)
-
-        val r1 = service.ingestEvent(tenantId, command)
-        val r2 = service.ingestEvent(tenantId, command)
-        val r3 = service.ingestEvent(tenantId, command)
-
-        assertEquals(1L, r1.sequenceNumber)
-        assertEquals(2L, r2.sequenceNumber)
-        assertEquals(3L, r3.sequenceNumber)
-    }
-
-    @Test
     fun `ingestEvent throws for unknown session`() {
         val command = TestFixtures.ingestEventCommand(sessionId = TestFixtures.sessionId())
 
@@ -246,7 +209,7 @@ class IngestionServiceTest {
     fun `ingestEvent throws for completed session`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-        service.completeSession(session.id, tenantId)
+        session.complete()
         val command = TestFixtures.ingestEventCommand(sessionId = session.id)
 
         assertThrows<IllegalStateException> {
@@ -269,9 +232,8 @@ class IngestionServiceTest {
         val results = service.ingestBatch(tenantId, commands)
 
         assertEquals(3, results.size)
-        assertEquals(1L, results[0].sequenceNumber)
-        assertEquals(2L, results[1].sequenceNumber)
-        assertEquals(3L, results[2].sequenceNumber)
+        // Each result has a unique eventId
+        assertEquals(3, results.map { it.eventId }.distinct().size)
     }
 
     @Test
@@ -304,24 +266,6 @@ class IngestionServiceTest {
 
         assertEquals(2, results.size)
         assertEquals(2, memoryEventPublisher.publishedEvents.size)
-    }
-
-    @Test
-    fun `ingestBatch maintains independent sequences per session`() {
-        val tenantId = TestFixtures.tenantId()
-        val s1 = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-        val s2 = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-        val commands = listOf(
-            TestFixtures.ingestEventCommand(sessionId = s1.id),
-            TestFixtures.ingestEventCommand(sessionId = s2.id),
-            TestFixtures.ingestEventCommand(sessionId = s1.id)
-        )
-
-        val results = service.ingestBatch(tenantId, commands)
-
-        assertEquals(1L, results[0].sequenceNumber) // s1 seq 1
-        assertEquals(1L, results[1].sequenceNumber) // s2 seq 1
-        assertEquals(2L, results[2].sequenceNumber) // s1 seq 2
     }
 
     @Test
@@ -361,11 +305,10 @@ class IngestionServiceTest {
     // --- getSessionEvents ---
 
     @Test
-    fun `getSessionEvents returns events in sequence order`() {
+    fun `getSessionEvents returns events ordered by occurredAt`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
 
-        // Ingest events to get real MemoryEvent instances, then seed the query fake
         val r1 = service.ingestEvent(tenantId, TestFixtures.ingestEventCommand(sessionId = session.id, payload = "first"))
         val r2 = service.ingestEvent(tenantId, TestFixtures.ingestEventCommand(sessionId = session.id, payload = "second"))
 
@@ -377,12 +320,10 @@ class IngestionServiceTest {
         assertEquals(2, events.size)
         assertEquals(r1.eventId, events[0].id)
         assertEquals(r2.eventId, events[1].id)
-        assertEquals(1L, events[0].sequenceNumber)
-        assertEquals(2L, events[1].sequenceNumber)
     }
 
     @Test
-    fun `getSessionEvents supports cursor pagination`() {
+    fun `getSessionEvents supports timestamp cursor pagination`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
 
@@ -391,11 +332,11 @@ class IngestionServiceTest {
         }
         memoryEventPublisher.publishedEvents.forEach { memoryEventQuery.addEvent(it) }
 
-        val page = service.getSessionEvents(session.id, tenantId, afterSequenceNumber = 1L)
+        val allEvents = service.getSessionEvents(session.id, tenantId)
+        val afterTimestamp = allEvents[0].occurredAt
+        val page = service.getSessionEvents(session.id, tenantId, after = afterTimestamp)
 
-        assertEquals(2, page.size)
-        assertEquals(2L, page[0].sequenceNumber)
-        assertEquals(3L, page[1].sequenceNumber)
+        assertTrue(page.all { it.occurredAt.isAfter(afterTimestamp) })
     }
 
     @Test

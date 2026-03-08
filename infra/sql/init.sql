@@ -25,7 +25,6 @@ CREATE TABLE sessions (
     started_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ended_at            TIMESTAMPTZ,
     status              TEXT NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | COMPLETED | ABANDONED
-    next_sequence_number BIGINT NOT NULL DEFAULT 1,
     metadata            JSONB DEFAULT '{}'
 );
 

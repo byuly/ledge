@@ -22,7 +22,6 @@ object ClickHouseMemoryEventMapper {
             agentId = AgentId(UUID.fromString(rs.getString("agent_id"))),
             tenantId = TenantId(UUID.fromString(rs.getString("tenant_id"))),
             eventType = EventType.valueOf(rs.getString("event_type")),
-            sequenceNumber = rs.getLong("sequence_number"),
             occurredAt = rs.getTimestamp("occurred_at").toInstant(),
             payload = rs.getString("payload"),
             contextHash = if (contextHashStr.isNullOrEmpty()) null else ContextHash(contextHashStr),

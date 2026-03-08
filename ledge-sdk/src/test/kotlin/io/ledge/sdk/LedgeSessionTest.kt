@@ -28,14 +28,16 @@ class LedgeSessionTest {
                 if (body is IngestEventRequest) {
                     capturedEvents.add(body)
                 }
-                return IngestEventResponse("evt-${++eventCounter}", eventCounter.toLong()) as T
+                return IngestEventResponse("evt-${++eventCounter}") as T
             }
 
             override fun <T> get(path: String, responseType: Class<T>): T = throw UnsupportedOperationException()
             override fun <T> patch(path: String, body: Any, responseType: Class<T>): T = throw UnsupportedOperationException()
+            override fun patchNoContent(path: String, body: Any) {}
             override fun <T> postAsync(path: String, body: Any, responseType: Class<T>): CompletableFuture<T> = CompletableFuture.supplyAsync { post(path, body, responseType) }
             override fun <T> getAsync(path: String, responseType: Class<T>): CompletableFuture<T> = throw UnsupportedOperationException()
             override fun <T> patchAsync(path: String, body: Any, responseType: Class<T>): CompletableFuture<T> = throw UnsupportedOperationException()
+            override fun patchNoContentAsync(path: String, body: Any): CompletableFuture<Void?> = CompletableFuture.completedFuture(null)
         }
 
         val client = LedgeClient(

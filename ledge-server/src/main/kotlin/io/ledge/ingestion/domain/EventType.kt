@@ -9,5 +9,7 @@ enum class EventType {
     AGENT_OUTPUT,
     TOOL_INVOKED,
     TOOL_RESPONDED,
-    ERROR
+    ERROR,
+    SESSION_COMPLETED,
+    SESSION_ABANDONED
 }

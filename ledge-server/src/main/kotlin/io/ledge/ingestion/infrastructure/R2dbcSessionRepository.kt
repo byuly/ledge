@@ -20,12 +20,11 @@ class R2dbcSessionRepository(
     override fun save(session: Session): Session {
         db.sql(
             """
-            INSERT INTO sessions (session_id, agent_id, tenant_id, started_at, ended_at, status, next_sequence_number, metadata)
-            VALUES (:id, :agentId, :tenantId, :startedAt, :endedAt, :status, :nextSeq, :metadata)
+            INSERT INTO sessions (session_id, agent_id, tenant_id, started_at, ended_at, status, metadata)
+            VALUES (:id, :agentId, :tenantId, :startedAt, :endedAt, :status, :metadata)
             ON CONFLICT (session_id) DO UPDATE SET
                 ended_at = EXCLUDED.ended_at,
-                status = EXCLUDED.status,
-                next_sequence_number = EXCLUDED.next_sequence_number
+                status = EXCLUDED.status
             """.trimIndent()
         )
             .bind("id", session.id.value)
@@ -33,7 +32,6 @@ class R2dbcSessionRepository(
             .bind("tenantId", session.tenantId.value)
             .bind("startedAt", session.startedAt)
             .bind("status", session.status.name)
-            .bind("nextSeq", session.nextSequenceNumber)
             .bind("metadata", Json.of("{}"))
             .let { spec ->
                 if (session.endedAt != null) {
@@ -50,7 +48,7 @@ class R2dbcSessionRepository(
     override fun findById(id: SessionId, tenantId: TenantId): Session? {
         return db.sql(
             """
-            SELECT session_id, agent_id, tenant_id, started_at, ended_at, status, next_sequence_number
+            SELECT session_id, agent_id, tenant_id, started_at, ended_at, status
             FROM sessions WHERE session_id = :id AND tenant_id = :tenantId
             """.trimIndent()
         )
@@ -64,7 +62,7 @@ class R2dbcSessionRepository(
     override fun findByAgentId(agentId: AgentId, tenantId: TenantId): List<Session> {
         return db.sql(
             """
-            SELECT session_id, agent_id, tenant_id, started_at, ended_at, status, next_sequence_number
+            SELECT session_id, agent_id, tenant_id, started_at, ended_at, status
             FROM sessions WHERE agent_id = :agentId AND tenant_id = :tenantId
             """.trimIndent()
         )
@@ -90,8 +88,7 @@ class R2dbcSessionRepository(
             tenantId = TenantId(row.get("tenant_id", UUID::class.java)!!),
             startedAt = row.get("started_at", Instant::class.java)!!,
             endedAt = row.get("ended_at", Instant::class.java),
-            status = SessionStatus.valueOf(row.get("status", String::class.java)!!),
-            nextSequenceNumber = row.get("next_sequence_number", java.lang.Long::class.java)!!.toLong()
+            status = SessionStatus.valueOf(row.get("status", String::class.java)!!)
         )
     }
 }

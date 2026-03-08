@@ -31,6 +31,10 @@ class JdkHttpTransport(
     override fun <T> patch(path: String, body: Any, responseType: Class<T>): T =
         retryPolicy.execute { doRequest("PATCH", path, body, responseType) }
 
+    override fun patchNoContent(path: String, body: Any) {
+        retryPolicy.execute { doRequestNoContent("PATCH", path, body) }
+    }
+
     override fun <T> postAsync(path: String, body: Any, responseType: Class<T>): CompletableFuture<T> =
         CompletableFuture.supplyAsync { post(path, body, responseType) }
 
@@ -39,6 +43,9 @@ class JdkHttpTransport(
 
     override fun <T> patchAsync(path: String, body: Any, responseType: Class<T>): CompletableFuture<T> =
         CompletableFuture.supplyAsync { patch(path, body, responseType) }
+
+    override fun patchNoContentAsync(path: String, body: Any): CompletableFuture<Void?> =
+        CompletableFuture.supplyAsync { patchNoContent(path, body); null }
 
     private fun <T> doRequest(method: String, path: String, body: Any?, responseType: Class<T>): T {
         val url = "${config.baseUrl.trimEnd('/')}$path"
@@ -58,6 +65,36 @@ class JdkHttpTransport(
 
         val response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
         return handleResponse(response, responseType)
+    }
+
+    private fun doRequestNoContent(method: String, path: String, body: Any?) {
+        val url = "${config.baseUrl.trimEnd('/')}$path"
+        val builder = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Content-Type", "application/json")
+            .header("X-API-Key", config.apiKey)
+            .timeout(Duration.ofMillis(config.requestTimeoutMs))
+
+        val bodyPublisher = if (body != null) {
+            HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body))
+        } else {
+            HttpRequest.BodyPublishers.noBody()
+        }
+
+        builder.method(method, bodyPublisher)
+
+        val response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+        val statusCode = response.statusCode()
+        when {
+            statusCode in 200..299 -> return
+            statusCode == 429 || statusCode in 500..599 -> {
+                val retryAfter = response.headers().firstValue("Retry-After")
+                    .map { it.toLongOrNull()?.times(1000) }
+                    .orElse(null)
+                throw RetryableException(statusCode, response.body(), retryAfter)
+            }
+            else -> throw LedgeApiException(statusCode, response.body())
+        }
     }
 
     private fun <T> handleResponse(response: HttpResponse<String>, responseType: Class<T>): T {

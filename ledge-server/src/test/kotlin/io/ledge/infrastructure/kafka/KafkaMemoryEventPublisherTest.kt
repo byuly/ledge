@@ -39,7 +39,6 @@ class KafkaMemoryEventPublisherTest {
             agentId = TestFixtures.agentId(),
             tenantId = tenantId,
             eventType = eventType,
-            sequenceNumber = 1L,
             occurredAt = Instant.parse("2025-01-15T10:30:00Z"),
             payload = """{"text":"hello"}""",
             contextHash = contextHash,

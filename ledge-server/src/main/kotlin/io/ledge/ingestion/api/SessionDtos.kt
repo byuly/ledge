@@ -13,8 +13,7 @@ data class SessionResponse(
     val tenantId: String,
     val startedAt: String,
     val endedAt: String?,
-    val status: String,
-    val nextSequenceNumber: Long
+    val status: String
 ) {
     companion object {
         fun from(session: Session): SessionResponse = SessionResponse(
@@ -23,8 +22,7 @@ data class SessionResponse(
             tenantId = session.tenantId.value.toString(),
             startedAt = session.startedAt.toString(),
             endedAt = session.endedAt?.toString(),
-            status = session.status.name,
-            nextSequenceNumber = session.nextSequenceNumber
+            status = session.status.name
         )
     }
 }
@@ -39,7 +37,6 @@ data class MemoryEventResponse(
     val agentId: String,
     val tenantId: String,
     val eventType: String,
-    val sequenceNumber: Long,
     val occurredAt: String,
     val payload: String,
     val contextHash: String?,
@@ -53,7 +50,6 @@ data class MemoryEventResponse(
             agentId = event.agentId.value.toString(),
             tenantId = event.tenantId.value.toString(),
             eventType = event.eventType.name,
-            sequenceNumber = event.sequenceNumber,
             occurredAt = event.occurredAt.toString(),
             payload = event.payload,
             contextHash = event.contextHash?.value,

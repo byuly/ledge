@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.time.Instant
 
 @RestController
 @RequestMapping("/api/v1/sessions")
@@ -52,28 +53,28 @@ class SessionController(
         @RequestHeader("X-Tenant-Id") tenantId: String,
         @PathVariable sessionId: String,
         @RequestBody request: UpdateSessionRequest
-    ): ResponseEntity<SessionResponse> = withContext(Dispatchers.IO) {
+    ): ResponseEntity<Void> = withContext(Dispatchers.IO) {
         val sid = SessionId.fromString(sessionId)
         val tid = TenantId.fromString(tenantId)
-        val session = when (request.status.uppercase()) {
+        when (request.status.uppercase()) {
             "COMPLETED" -> ingestionService.completeSession(sid, tid)
             "ABANDONED" -> ingestionService.abandonSession(sid, tid)
             else -> throw IllegalArgumentException("Invalid status: ${request.status}. Must be COMPLETED or ABANDONED")
         }
-        ResponseEntity.ok(SessionResponse.from(session))
+        ResponseEntity.accepted().build()
     }
 
     @GetMapping("/{sessionId}/events")
     suspend fun getSessionEvents(
         @RequestHeader("X-Tenant-Id") tenantId: String,
         @PathVariable sessionId: String,
-        @RequestParam(required = false) after: Long?,
+        @RequestParam(required = false) after: String?,
         @RequestParam(required = false, defaultValue = "50") limit: Int
     ): ResponseEntity<List<MemoryEventResponse>> = withContext(Dispatchers.IO) {
         val events = ingestionService.getSessionEvents(
             SessionId.fromString(sessionId),
             TenantId.fromString(tenantId),
-            afterSequenceNumber = after,
+            after = after?.let { Instant.parse(it) },
             limit = limit
         )
         ResponseEntity.ok(events.map { MemoryEventResponse.from(it) })

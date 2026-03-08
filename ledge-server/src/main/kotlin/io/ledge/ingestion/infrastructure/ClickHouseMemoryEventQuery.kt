@@ -7,6 +7,8 @@ import io.ledge.shared.TenantId
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import java.sql.DriverManager
+import java.sql.Timestamp
+import java.time.Instant
 
 @Component
 class ClickHouseMemoryEventQuery(
@@ -16,14 +18,14 @@ class ClickHouseMemoryEventQuery(
     override fun findBySessionId(
         sessionId: SessionId,
         tenantId: TenantId,
-        afterSequenceNumber: Long?,
+        after: Instant?,
         limit: Int
     ): List<MemoryEvent> {
-        val hasSeqFilter = afterSequenceNumber != null
+        val hasTimeFilter = after != null
         val sql = buildString {
             append("SELECT * FROM ledge.memory_events WHERE session_id = ? AND tenant_id = ?")
-            if (hasSeqFilter) append(" AND sequence_number > ?")
-            append(" ORDER BY sequence_number ASC LIMIT ?")
+            if (hasTimeFilter) append(" AND occurred_at > ?")
+            append(" ORDER BY occurred_at ASC LIMIT ?")
         }
 
         return DriverManager.getConnection(url).use { conn ->
@@ -31,7 +33,7 @@ class ClickHouseMemoryEventQuery(
                 var idx = 1
                 ps.setString(idx++, sessionId.value.toString())
                 ps.setString(idx++, tenantId.value.toString())
-                if (hasSeqFilter) ps.setLong(idx++, afterSequenceNumber!!)
+                if (hasTimeFilter) ps.setTimestamp(idx++, Timestamp.from(after!!))
                 ps.setInt(idx, limit)
 
                 val rs = ps.executeQuery()

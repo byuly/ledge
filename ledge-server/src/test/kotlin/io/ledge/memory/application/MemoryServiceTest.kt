@@ -345,21 +345,23 @@ class MemoryServiceTest {
     // --- getAuditTrail ---
 
     @Test
-    fun `getAuditTrail returns events in sequence order`() {
+    fun `getAuditTrail returns events in time order`() {
         val sessionId = TestFixtures.sessionId()
         val tenantId = TestFixtures.tenantId()
         val agentId = TestFixtures.agentId()
+        val t1 = Instant.parse("2025-01-01T00:00:00Z")
+        val t2 = Instant.parse("2025-01-01T00:01:00Z")
 
-        val e1 = memoryEvent(sessionId, agentId, tenantId, EventType.USER_INPUT, 1L)
-        val e2 = memoryEvent(sessionId, agentId, tenantId, EventType.AGENT_OUTPUT, 2L)
+        val e1 = memoryEvent(sessionId, agentId, tenantId, EventType.USER_INPUT, t1)
+        val e2 = memoryEvent(sessionId, agentId, tenantId, EventType.AGENT_OUTPUT, t2)
         observationQuery.addEvent(e2)
         observationQuery.addEvent(e1)
 
         val trail = service.getAuditTrail(sessionId, tenantId)
 
         assertEquals(2, trail.size)
-        assertEquals(1L, trail[0].sequenceNumber)
-        assertEquals(2L, trail[1].sequenceNumber)
+        assertEquals(EventType.USER_INPUT, trail[0].eventType)
+        assertEquals(EventType.AGENT_OUTPUT, trail[1].eventType)
     }
 
     @Test
@@ -433,7 +435,6 @@ class MemoryServiceTest {
         agentId = agentId,
         tenantId = tenantId,
         eventType = EventType.CONTEXT_ASSEMBLED,
-        sequenceNumber = 1L,
         occurredAt = occurredAt,
         payload = payload,
         contextHash = null,
@@ -446,15 +447,14 @@ class MemoryServiceTest {
         agentId: io.ledge.shared.AgentId,
         tenantId: io.ledge.shared.TenantId,
         eventType: EventType,
-        sequenceNumber: Long
+        occurredAt: Instant
     ): MemoryEvent = MemoryEvent(
         id = TestFixtures.eventId(),
         sessionId = sessionId,
         agentId = agentId,
         tenantId = tenantId,
         eventType = eventType,
-        sequenceNumber = sequenceNumber,
-        occurredAt = Instant.now(),
+        occurredAt = occurredAt,
         payload = "{}",
         contextHash = null,
         parentEventId = null,

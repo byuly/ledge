@@ -33,19 +33,17 @@ class LedgeClient(
         )
     }
 
-    fun completeSession(sessionId: String): SessionResponse {
-        return transport.patch(
+    fun completeSession(sessionId: String) {
+        transport.patchNoContent(
             "/api/v1/sessions/$sessionId",
-            UpdateSessionRequest(status = "COMPLETED"),
-            SessionResponse::class.java
+            UpdateSessionRequest(status = "COMPLETED")
         )
     }
 
-    fun abandonSession(sessionId: String): SessionResponse {
-        return transport.patch(
+    fun abandonSession(sessionId: String) {
+        transport.patchNoContent(
             "/api/v1/sessions/$sessionId",
-            UpdateSessionRequest(status = "ABANDONED"),
-            SessionResponse::class.java
+            UpdateSessionRequest(status = "ABANDONED")
         )
     }
 

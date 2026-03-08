@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS ledge.memory_events (
     agent_id        UUID,
     tenant_id       UUID,
     event_type      LowCardinality(String),
-    sequence_number Int64,
     occurred_at     DateTime64(3, 'UTC'),
     payload         String,
     context_hash    String,                 -- empty string = null (ClickHouse perf optimization)
@@ -16,7 +15,7 @@ CREATE TABLE IF NOT EXISTS ledge.memory_events (
 )
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(occurred_at)
-ORDER BY (tenant_id, agent_id, occurred_at, sequence_number);
+ORDER BY (tenant_id, agent_id, occurred_at);
 
 -- Materialized view: fast CONTEXT_ASSEMBLED point-in-time queries
 -- Supports: GET /api/v1/agents/{agentId}/context?at=<timestamp>

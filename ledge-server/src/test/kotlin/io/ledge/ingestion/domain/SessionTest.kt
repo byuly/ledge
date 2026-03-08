@@ -46,19 +46,6 @@ class SessionTest {
     }
 
     @Test
-    fun `ingest assigns monotonically increasing sequence numbers`() {
-        val session = activeSession()
-
-        val e1 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.USER_INPUT, payload = "1")
-        val e2 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.AGENT_OUTPUT, payload = "2")
-        val e3 = session.ingest(eventId = TestFixtures.eventId(), eventType = EventType.TOOL_INVOKED, payload = "3")
-
-        assertEquals(1L, e1.sequenceNumber)
-        assertEquals(2L, e2.sequenceNumber)
-        assertEquals(3L, e3.sequenceNumber)
-    }
-
-    @Test
     fun `ingest on COMPLETED session throws IllegalStateException`() {
         val session = activeSession()
         session.complete()

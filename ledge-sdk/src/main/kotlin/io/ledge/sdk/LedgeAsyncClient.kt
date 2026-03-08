@@ -34,19 +34,17 @@ class LedgeAsyncClient(
         )
     }
 
-    suspend fun completeSession(sessionId: String): SessionResponse {
-        return transport.patchAsync(
+    suspend fun completeSession(sessionId: String) {
+        transport.patchNoContentAsync(
             "/api/v1/sessions/$sessionId",
-            UpdateSessionRequest(status = "COMPLETED"),
-            SessionResponse::class.java
+            UpdateSessionRequest(status = "COMPLETED")
         ).await()
     }
 
-    suspend fun abandonSession(sessionId: String): SessionResponse {
-        return transport.patchAsync(
+    suspend fun abandonSession(sessionId: String) {
+        transport.patchNoContentAsync(
             "/api/v1/sessions/$sessionId",
-            UpdateSessionRequest(status = "ABANDONED"),
-            SessionResponse::class.java
+            UpdateSessionRequest(status = "ABANDONED")
         ).await()
     }
 

@@ -12,8 +12,7 @@ class Session(
     val tenantId: TenantId,
     val startedAt: Instant = Instant.now(),
     var endedAt: Instant? = null,
-    var status: SessionStatus = SessionStatus.ACTIVE,
-    var nextSequenceNumber: Long = 1L
+    var status: SessionStatus = SessionStatus.ACTIVE
 ) {
     private val _events = mutableListOf<MemoryEvent>()
     val events: List<MemoryEvent> get() = _events
@@ -37,7 +36,6 @@ class Session(
             agentId = agentId,
             tenantId = tenantId,
             eventType = eventType,
-            sequenceNumber = nextSequenceNumber++,
             occurredAt = occurredAt,
             payload = payload,
             contextHash = contextHash,

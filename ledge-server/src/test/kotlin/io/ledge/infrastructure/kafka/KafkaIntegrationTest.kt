@@ -8,6 +8,7 @@ import io.ledge.infrastructure.TestContainers
 import io.ledge.ingestion.domain.EventType
 import io.ledge.ingestion.domain.MemoryEvent
 import io.ledge.ingestion.domain.SchemaVersion
+import io.ledge.ingestion.application.FakeSessionRepository
 import io.ledge.ingestion.infrastructure.ClickHouseMemoryEventWriter
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.AdminClientConfig
@@ -86,7 +87,7 @@ class KafkaIntegrationTest {
             redisContextCache = RedisContextCache(redisTemplate)
 
             clickHouseConsumer = ClickHouseWriterConsumer(clickHouseWriter, objectMapper)
-            redisConsumer = RedisWriterConsumer(redisContextCache, objectMapper)
+            redisConsumer = RedisWriterConsumer(redisContextCache, FakeSessionRepository(), objectMapper)
         }
 
         private fun uniqueGroupId(prefix: String): String =
@@ -110,7 +111,6 @@ class KafkaIntegrationTest {
             agentId = TestFixtures.agentId(),
             tenantId = TestFixtures.tenantId(),
             eventType = eventType,
-            sequenceNumber = 1L,
             occurredAt = Instant.now().truncatedTo(ChronoUnit.MILLIS),
             payload = payload,
             contextHash = null,

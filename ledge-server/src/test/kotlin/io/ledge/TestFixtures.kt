@@ -49,16 +49,14 @@ object TestFixtures {
         tenantId: TenantId = tenantId(),
         startedAt: Instant = Instant.now(),
         endedAt: Instant? = null,
-        status: SessionStatus = SessionStatus.ACTIVE,
-        nextSequenceNumber: Long = 1L
+        status: SessionStatus = SessionStatus.ACTIVE
     ): Session = Session(
         id = id,
         agentId = agentId,
         tenantId = tenantId,
         startedAt = startedAt,
         endedAt = endedAt,
-        status = status,
-        nextSequenceNumber = nextSequenceNumber
+        status = status
     )
 
     fun ingestEventCommand(

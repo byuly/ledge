@@ -255,14 +255,14 @@ POST /api/v1/events (Ingest API)
       │
       ├── validate schema
       ├── validate payload structure per EventType
-      ├── assign sequenceNumber (per-session monotonic)
       ├── assign eventId (UUID)
+      ├── assign occurredAt timestamp
       │
       ▼
 Publish to Kafka topic: ledge.events
       │
       ├── Consumer Group A → write to ClickHouse (memory_events table)
-      └── Consumer Group B → write to PostgreSQL + update Redis
+      └── Consumer Group B → handle SESSION_COMPLETED/SESSION_ABANDONED → PostgreSQL, CONTEXT_ASSEMBLED → Redis
 ```
 
 ---
@@ -379,7 +379,7 @@ data class MemoryEvent(
     val agentId: AgentId,         // which AI agent produced this
     val tenantId: TenantId,       // multi-tenancy scope
     val eventType: EventType,     // see enum below
-    val sequenceNumber: Long,     // monotonic per-session ordering (assigned by Session aggregate)
+    // Event ordering uses occurredAt timestamps (ClickHouse optimized for time-range queries)
     val occurredAt: Instant,      // wall clock time, UTC
     val payload: String,          // structured JSON per EventType (see §5.7 Payload Schemas)
     val contextHash: ContextHash?,// SHA-256 for comparison/dedup; actual content in payload
@@ -451,7 +451,7 @@ class Session(
     val startedAt: Instant,
     var endedAt: Instant?,
     var status: SessionStatus,            // ACTIVE, COMPLETED, ABANDONED
-    var nextSequenceNumber: Long          // monotonic counter for event ordering
+    // Session no longer tracks sequence numbers — event ordering uses occurredAt timestamps
 ) {
     // Key method — enforces invariant: session must be ACTIVE, assigns sequence number
     fun ingest(eventId, eventType, payload, ...): MemoryEvent
@@ -790,7 +790,7 @@ Ingest a single observation event. Returns immediately (`202 Accepted`). Actual 
 // Response: 202 Accepted
 {
   "eventId": "uuid",
-  "sequenceNumber": 42
+  "eventId": "uuid"
 }
 ```
 
@@ -803,7 +803,7 @@ Ingest up to 500 events in a single request. Same async semantics.
 { "events": [ /* array of event objects */ ] }
 
 // Response: 202 Accepted
-{ "accepted": 500, "results": [ { "eventId": "uuid", "sequenceNumber": 1 }, ... ] }
+{ "accepted": 500, "results": [ { "eventId": "uuid" }, ... ] }
 ```
 
 ---
@@ -820,7 +820,7 @@ Retrieve session metadata and status.
 Update session status (e.g. mark as `COMPLETED` or `ABANDONED`).
 
 **GET** `/sessions/{sessionId}/events`
-Retrieve all events for a session in sequence order. Supports pagination via `?limit=` and `?after=sequenceNumber`.
+Retrieve all events for a session in time order. Supports pagination via `?limit=` and `?after=<timestamp>`.
 
 ---
 
@@ -918,7 +918,7 @@ Full cognitive trace for a session. Returns all events in sequence with inferenc
 
 ```
 1. SDK calls POST /api/v1/events
-2. Ingest API validates, assigns eventId + sequenceNumber
+2. Ingest API validates, assigns eventId + occurredAt timestamp
 3. Ingest API publishes to ledge.events (partitioned by tenantId)
 4. Ingest API returns 202 Accepted to SDK
 
@@ -947,8 +947,7 @@ CREATE TABLE memory_events (
     session_id      UUID,
     agent_id        UUID,
     tenant_id       UUID,
-    event_type      LowCardinality(String),  -- v1: CONTEXT_ASSEMBLED, INFERENCE_REQUESTED, etc.
-    sequence_number Int64,
+    event_type      LowCardinality(String),  -- v1: CONTEXT_ASSEMBLED, INFERENCE_REQUESTED, SESSION_COMPLETED, SESSION_ABANDONED, etc.
     occurred_at     DateTime64(3, 'UTC'),
     payload         String,       -- structured JSON per EventType (see §5.7)
     context_hash    String,
@@ -957,7 +956,7 @@ CREATE TABLE memory_events (
 )
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(occurred_at)
-ORDER BY (tenant_id, agent_id, occurred_at, sequence_number);
+ORDER BY (tenant_id, agent_id, occurred_at);
 
 -- Materialized view for fast CONTEXT_ASSEMBLED point-in-time queries
 CREATE MATERIALIZED VIEW context_assembled_mv
@@ -1041,7 +1040,7 @@ CREATE TABLE sessions (
     started_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     ended_at            TIMESTAMPTZ,
     status              TEXT NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | COMPLETED | ABANDONED
-    next_sequence_number BIGINT NOT NULL DEFAULT 1,
+    -- next_sequence_number removed: event ordering uses occurredAt timestamps
     metadata            JSONB DEFAULT '{}'
 );
 
@@ -1491,7 +1490,7 @@ Domain value objects enforce business rules at construction time. They are imple
 
 **`ClickHouseMemoryEventWriter`** is infrastructure-only (no port interface). Phase 4's Kafka consumer will use it directly to persist events to ClickHouse.
 
-**`ObservationEventQuery`** queries the `memory_events` main table (not the materialized view) because the MV lacks columns needed for full `MemoryEvent` reconstruction (`sequence_number`, `parent_event_id`, `schema_version`).
+**`ObservationEventQuery`** queries the `memory_events` main table (not the materialized view) because the MV lacks columns needed for full `MemoryEvent` reconstruction (`parent_event_id`, `schema_version`).
 
 **Kafka adapters** (`io.ledge.infrastructure.kafka`):
 - `KafkaMemoryEventPublisher` implements the `MemoryEventPublisher` port. Serializes `MemoryEvent` → `MemoryEventEnvelope` → JSON, sends to `ledge.events` with key = `tenantId` for partition isolation. Uses synchronous `.get()` on the send future to match the port's synchronous contract.

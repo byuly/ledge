@@ -140,7 +140,6 @@ class R2dbcRepositoryIntegrationTest {
         assertEquals(session.agentId, found.agentId)
         assertEquals(SessionStatus.ACTIVE, found.status)
         assertNull(found.endedAt)
-        assertEquals(1L, found.nextSequenceNumber)
     }
 
     @Test
@@ -188,17 +187,4 @@ class R2dbcRepositoryIntegrationTest {
         assertEquals(0, sessionRepo.findByAgentId(agent.id, tenant.id).size)
     }
 
-    @Test
-    fun `session nextSequenceNumber persists across save-load cycle`() {
-        val tenant = TestFixtures.tenant()
-        tenantRepo.save(tenant)
-        val agent = TestFixtures.agent(tenantId = tenant.id)
-        agentRepo.save(agent)
-
-        val session = TestFixtures.session(agentId = agent.id, tenantId = tenant.id, nextSequenceNumber = 42L)
-        sessionRepo.save(session)
-
-        val found = sessionRepo.findById(session.id, tenant.id)
-        assertEquals(42L, found!!.nextSequenceNumber)
-    }
 }

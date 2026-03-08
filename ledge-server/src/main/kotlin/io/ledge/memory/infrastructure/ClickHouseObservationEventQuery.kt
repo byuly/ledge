@@ -57,7 +57,7 @@ class ClickHouseObservationEventQuery(
         private val FIND_BY_SESSION_SQL = """
             SELECT * FROM ledge.memory_events
             WHERE session_id = ? AND tenant_id = ?
-            ORDER BY sequence_number ASC
+            ORDER BY occurred_at ASC
         """.trimIndent()
     }
 }

@@ -1,8 +1,7 @@
 package io.ledge.sdk.model
 
 data class IngestEventResponse(
-    val eventId: String,
-    val sequenceNumber: Long
+    val eventId: String
 )
 
 data class IngestBatchResponse(
@@ -16,6 +15,5 @@ data class SessionResponse(
     val tenantId: String,
     val startedAt: String,
     val endedAt: String?,
-    val status: String,
-    val nextSequenceNumber: Long
+    val status: String
 )

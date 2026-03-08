@@ -115,7 +115,6 @@ class ObservationControllerIntegrationTest {
             tenantId = tenantId,
             sessionId = sessionId,
             eventType = EventType.CONTEXT_ASSEMBLED,
-            sequenceNumber = 1L,
             occurredAt = t1,
             payload = objectMapper.writeValueAsString(fromBlocks)
         )
@@ -124,7 +123,6 @@ class ObservationControllerIntegrationTest {
             tenantId = tenantId,
             sessionId = sessionId,
             eventType = EventType.CONTEXT_ASSEMBLED,
-            sequenceNumber = 2L,
             occurredAt = t2,
             payload = objectMapper.writeValueAsString(toBlocks)
         )
@@ -156,17 +154,17 @@ class ObservationControllerIntegrationTest {
 
         val e1 = makeEvent(
             sessionId = sessionId, agentId = agentId, tenantId = tenantId,
-            eventType = EventType.USER_INPUT, sequenceNumber = 1L,
+            eventType = EventType.USER_INPUT,
             occurredAt = t1, payload = """{"text":"hello"}"""
         )
         val e2 = makeEvent(
             sessionId = sessionId, agentId = agentId, tenantId = tenantId,
-            eventType = EventType.INFERENCE_REQUESTED, sequenceNumber = 2L,
+            eventType = EventType.INFERENCE_REQUESTED,
             occurredAt = t1.plusSeconds(1), payload = """{"model":"gpt-4"}"""
         )
         val e3 = makeEvent(
             sessionId = sessionId, agentId = agentId, tenantId = tenantId,
-            eventType = EventType.AGENT_OUTPUT, sequenceNumber = 3L,
+            eventType = EventType.AGENT_OUTPUT,
             occurredAt = t1.plusSeconds(2), payload = """{"text":"Hi there!"}"""
         )
         writer.writeAll(listOf(e1, e2, e3))
@@ -178,13 +176,10 @@ class ObservationControllerIntegrationTest {
             .expectBody()
             .jsonPath("$.length()").isEqualTo(3)
             .jsonPath("$[0].eventType").isEqualTo("USER_INPUT")
-            .jsonPath("$[0].sequenceNumber").isEqualTo(1)
             .jsonPath("$[0].payload").isMap
             .jsonPath("$[0].payload.text").isEqualTo("hello")
             .jsonPath("$[1].eventType").isEqualTo("INFERENCE_REQUESTED")
-            .jsonPath("$[1].sequenceNumber").isEqualTo(2)
             .jsonPath("$[2].eventType").isEqualTo("AGENT_OUTPUT")
-            .jsonPath("$[2].sequenceNumber").isEqualTo(3)
             .jsonPath("$[2].sessionId").isEqualTo(sessionId.value.toString())
             .jsonPath("$[2].agentId").isEqualTo(agentId.value.toString())
             .jsonPath("$[2].tenantId").isEqualTo(tenantId.value.toString())
@@ -196,7 +191,6 @@ class ObservationControllerIntegrationTest {
         agentId: AgentId = TestFixtures.agentId(),
         tenantId: TenantId = TestFixtures.tenantId(),
         eventType: EventType = EventType.USER_INPUT,
-        sequenceNumber: Long = 1L,
         occurredAt: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS),
         payload: String = """{"text":"hello"}""",
         contextHash: ContextHash? = null
@@ -206,7 +200,6 @@ class ObservationControllerIntegrationTest {
         agentId = agentId,
         tenantId = tenantId,
         eventType = eventType,
-        sequenceNumber = sequenceNumber,
         occurredAt = occurredAt,
         payload = payload,
         contextHash = contextHash,

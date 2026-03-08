@@ -27,16 +27,15 @@ class ClickHouseMemoryEventWriter(
                     ps.setString(3, event.agentId.value.toString())
                     ps.setString(4, event.tenantId.value.toString())
                     ps.setString(5, event.eventType.name)
-                    ps.setLong(6, event.sequenceNumber)
-                    ps.setTimestamp(7, Timestamp.from(event.occurredAt))
-                    ps.setString(8, event.payload)
-                    ps.setString(9, event.contextHash?.value ?: "")
+                    ps.setTimestamp(6, Timestamp.from(event.occurredAt))
+                    ps.setString(7, event.payload)
+                    ps.setString(8, event.contextHash?.value ?: "")
                     if (event.parentEventId != null) {
-                        ps.setString(10, event.parentEventId.value.toString())
+                        ps.setString(9, event.parentEventId.value.toString())
                     } else {
-                        ps.setNull(10, Types.OTHER)
+                        ps.setNull(9, Types.OTHER)
                     }
-                    ps.setInt(11, event.schemaVersion.value)
+                    ps.setInt(10, event.schemaVersion.value)
                     ps.addBatch()
                 }
                 ps.executeBatch()
@@ -47,9 +46,9 @@ class ClickHouseMemoryEventWriter(
     companion object {
         private val INSERT_SQL = """
             INSERT INTO ledge.memory_events
-            (event_id, session_id, agent_id, tenant_id, event_type, sequence_number,
+            (event_id, session_id, agent_id, tenant_id, event_type,
              occurred_at, payload, context_hash, parent_event_id, schema_version)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """.trimIndent()
     }
 }

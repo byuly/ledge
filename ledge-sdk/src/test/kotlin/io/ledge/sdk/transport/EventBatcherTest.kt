@@ -97,16 +97,18 @@ class EventBatcherTest {
                 return IngestBatchResponse(
                     accepted = (body as? IngestBatchRequest)?.events?.size ?: 0,
                     results = (body as? IngestBatchRequest)?.events?.mapIndexed { i, _ ->
-                        IngestEventResponse("evt-$i", i.toLong())
+                        IngestEventResponse("evt-$i")
                     } ?: emptyList()
                 ) as T
             }
 
             override fun <T> get(path: String, responseType: Class<T>): T = throw UnsupportedOperationException()
             override fun <T> patch(path: String, body: Any, responseType: Class<T>): T = throw UnsupportedOperationException()
+            override fun patchNoContent(path: String, body: Any) {}
             override fun <T> postAsync(path: String, body: Any, responseType: Class<T>): CompletableFuture<T> = CompletableFuture.supplyAsync { post(path, body, responseType) }
             override fun <T> getAsync(path: String, responseType: Class<T>): CompletableFuture<T> = throw UnsupportedOperationException()
             override fun <T> patchAsync(path: String, body: Any, responseType: Class<T>): CompletableFuture<T> = throw UnsupportedOperationException()
+            override fun patchNoContentAsync(path: String, body: Any): CompletableFuture<Void?> = CompletableFuture.completedFuture(null)
         }
     }
 }

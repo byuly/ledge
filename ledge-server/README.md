@@ -163,8 +163,7 @@ curl -X POST http://localhost:8080/api/v1/sessions \
   "tenantId": "01234567-...",
   "startedAt": "2024-01-01T00:00:00Z",
   "endedAt": null,
-  "status": "ACTIVE",
-  "nextSequenceNumber": 1
+  "status": "ACTIVE"
 }
 ```
 
@@ -217,7 +216,7 @@ curl -X POST http://localhost:8080/api/v1/events \
 ```
 
 ```json
-{"eventId": "evt-uuid", "sequenceNumber": 1}
+{"eventId": "evt-uuid"}
 ```
 
 **Ingest a batch** (up to 500 events)

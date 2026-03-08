@@ -153,13 +153,15 @@ class ObservationControllerTest {
     // --- GET /api/v1/sessions/{sessionId}/audit ---
 
     @Test
-    fun `getAuditTrail returns 200 with events in sequence order`() {
+    fun `getAuditTrail returns 200 with events in time order`() {
         val sessionId = TestFixtures.sessionId()
         val tenantId = TestFixtures.tenantId()
         val agentId = TestFixtures.agentId()
+        val t1 = Instant.parse("2025-01-01T00:00:00Z")
+        val t2 = Instant.parse("2025-01-01T00:01:00Z")
 
-        val e1 = memoryEvent(sessionId, agentId, tenantId, EventType.USER_INPUT, 1L)
-        val e2 = memoryEvent(sessionId, agentId, tenantId, EventType.AGENT_OUTPUT, 2L)
+        val e1 = memoryEvent(sessionId, agentId, tenantId, EventType.USER_INPUT, t1)
+        val e2 = memoryEvent(sessionId, agentId, tenantId, EventType.AGENT_OUTPUT, t2)
         observationQuery.addEvent(e2)
         observationQuery.addEvent(e1)
 
@@ -169,11 +171,9 @@ class ObservationControllerTest {
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$.length()").isEqualTo(2)
-            .jsonPath("$[0].sequenceNumber").isEqualTo(1)
             .jsonPath("$[0].eventType").isEqualTo("USER_INPUT")
             .jsonPath("$[0].sessionId").isEqualTo(sessionId.value.toString())
             .jsonPath("$[0].payload").isNotEmpty
-            .jsonPath("$[1].sequenceNumber").isEqualTo(2)
             .jsonPath("$[1].eventType").isEqualTo("AGENT_OUTPUT")
     }
 
@@ -205,7 +205,6 @@ class ObservationControllerTest {
         agentId = agentId,
         tenantId = tenantId,
         eventType = EventType.CONTEXT_ASSEMBLED,
-        sequenceNumber = 1L,
         occurredAt = occurredAt,
         payload = payload,
         contextHash = contextHash,
@@ -218,15 +217,14 @@ class ObservationControllerTest {
         agentId: io.ledge.shared.AgentId,
         tenantId: io.ledge.shared.TenantId,
         eventType: EventType,
-        sequenceNumber: Long
+        occurredAt: Instant
     ): MemoryEvent = MemoryEvent(
         id = TestFixtures.eventId(),
         sessionId = sessionId,
         agentId = agentId,
         tenantId = tenantId,
         eventType = eventType,
-        sequenceNumber = sequenceNumber,
-        occurredAt = Instant.now(),
+        occurredAt = occurredAt,
         payload = """{"data": "test"}""",
         contextHash = null,
         parentEventId = null,

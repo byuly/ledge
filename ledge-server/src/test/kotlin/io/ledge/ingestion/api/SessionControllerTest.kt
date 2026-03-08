@@ -89,7 +89,7 @@ class SessionControllerTest {
     // --- PATCH /api/v1/sessions/{sessionId} ---
 
     @Test
-    fun `updateSession to COMPLETED returns 200`() {
+    fun `updateSession to COMPLETED returns 202`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
 
@@ -98,14 +98,11 @@ class SessionControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue("""{"status": "COMPLETED"}""")
             .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.status").isEqualTo("COMPLETED")
-            .jsonPath("$.endedAt").isNotEmpty
+            .expectStatus().isAccepted
     }
 
     @Test
-    fun `updateSession to ABANDONED returns 200`() {
+    fun `updateSession to ABANDONED returns 202`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
 
@@ -114,17 +111,14 @@ class SessionControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue("""{"status": "ABANDONED"}""")
             .exchange()
-            .expectStatus().isOk
-            .expectBody()
-            .jsonPath("$.status").isEqualTo("ABANDONED")
-            .jsonPath("$.endedAt").isNotEmpty
+            .expectStatus().isAccepted
     }
 
     @Test
     fun `updateSession returns 409 when already completed`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
-        service.completeSession(session.id, tenantId)
+        session.complete() // Simulate consumer-side completion
 
         client.patch().uri("/api/v1/sessions/${session.id.value}")
             .header("X-Tenant-Id", tenantId.value.toString())
@@ -157,12 +151,12 @@ class SessionControllerTest {
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$.length()").isEqualTo(2)
-            .jsonPath("$[0].sequenceNumber").isEqualTo(1)
-            .jsonPath("$[1].sequenceNumber").isEqualTo(2)
+            .jsonPath("$[0].payload").isEqualTo("first")
+            .jsonPath("$[1].payload").isEqualTo("second")
     }
 
     @Test
-    fun `getSessionEvents supports pagination with after and limit`() {
+    fun `getSessionEvents supports pagination with after timestamp and limit`() {
         val tenantId = TestFixtures.tenantId()
         val session = service.createSession(tenantId, CreateSessionCommand(TestFixtures.agentId()))
 
@@ -171,12 +165,13 @@ class SessionControllerTest {
         }
         memoryEventPublisher.publishedEvents.forEach { memoryEventQuery.addEvent(it) }
 
-        client.get().uri("/api/v1/sessions/${session.id.value}/events?after=1&limit=1")
+        val firstEventTime = memoryEventPublisher.publishedEvents[0].occurredAt
+
+        client.get().uri("/api/v1/sessions/${session.id.value}/events?after=$firstEventTime&limit=1")
             .header("X-Tenant-Id", tenantId.value.toString())
             .exchange()
             .expectStatus().isOk
             .expectBody()
             .jsonPath("$.length()").isEqualTo(1)
-            .jsonPath("$[0].sequenceNumber").isEqualTo(2)
     }
 }

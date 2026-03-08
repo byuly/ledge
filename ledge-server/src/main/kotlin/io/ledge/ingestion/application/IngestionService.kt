@@ -4,12 +4,14 @@ import io.ledge.ingestion.application.port.DomainEventPublisher
 import io.ledge.ingestion.application.port.MemoryEventPublisher
 import io.ledge.ingestion.application.port.MemoryEventQuery
 import io.ledge.ingestion.application.port.SessionRepository
+import io.ledge.ingestion.domain.EventType
 import io.ledge.ingestion.domain.MemoryEvent
+import io.ledge.ingestion.domain.SchemaVersion
 import io.ledge.ingestion.domain.Session
-import io.ledge.shared.DomainEvent
 import io.ledge.shared.EventId
 import io.ledge.shared.SessionId
 import io.ledge.shared.TenantId
+import java.time.Instant
 
 class IngestionService(
     private val sessionRepository: SessionRepository,
@@ -31,27 +33,46 @@ class IngestionService(
         return sessionRepository.findById(sessionId, tenantId)
     }
 
-    fun completeSession(sessionId: SessionId, tenantId: TenantId): Session {
+    fun completeSession(sessionId: SessionId, tenantId: TenantId) {
         val session = sessionRepository.findById(sessionId, tenantId)
             ?: throw IllegalArgumentException("Session not found: $sessionId")
-        session.complete()
-        sessionRepository.save(session)
-        domainEventPublisher.publish(
-            DomainEvent.SessionCompleted(
-                sessionId = session.id,
-                agentId = session.agentId,
-                tenantId = session.tenantId
-            )
+        check(session.status == io.ledge.ingestion.domain.SessionStatus.ACTIVE) {
+            "Cannot complete session with status ${session.status} — session must be ACTIVE"
+        }
+        val event = MemoryEvent(
+            id = EventId.generate(),
+            sessionId = session.id,
+            agentId = session.agentId,
+            tenantId = session.tenantId,
+            eventType = EventType.SESSION_COMPLETED,
+            occurredAt = Instant.now(),
+            payload = "{}",
+            contextHash = null,
+            parentEventId = null,
+            schemaVersion = SchemaVersion(1)
         )
-        return session
+        memoryEventPublisher.publish(event)
     }
 
-    fun abandonSession(sessionId: SessionId, tenantId: TenantId): Session {
+    fun abandonSession(sessionId: SessionId, tenantId: TenantId) {
         val session = sessionRepository.findById(sessionId, tenantId)
             ?: throw IllegalArgumentException("Session not found: $sessionId")
-        session.abandon()
-        sessionRepository.save(session)
-        return session
+        check(session.status == io.ledge.ingestion.domain.SessionStatus.ACTIVE) {
+            "Cannot abandon session with status ${session.status} — session must be ACTIVE"
+        }
+        val event = MemoryEvent(
+            id = EventId.generate(),
+            sessionId = session.id,
+            agentId = session.agentId,
+            tenantId = session.tenantId,
+            eventType = EventType.SESSION_ABANDONED,
+            occurredAt = Instant.now(),
+            payload = "{}",
+            contextHash = null,
+            parentEventId = null,
+            schemaVersion = SchemaVersion(1)
+        )
+        memoryEventPublisher.publish(event)
     }
 
     fun ingestEvent(tenantId: TenantId, command: IngestEventCommand): IngestEventResult {
@@ -67,9 +88,8 @@ class IngestionService(
             parentEventId = command.parentEventId,
             schemaVersion = command.schemaVersion
         )
-        sessionRepository.save(session)
         memoryEventPublisher.publish(event)
-        return IngestEventResult(eventId = event.id, sequenceNumber = event.sequenceNumber)
+        return IngestEventResult(eventId = event.id)
     }
 
     fun ingestBatch(tenantId: TenantId, commands: List<IngestEventCommand>): List<IngestEventResult> {
@@ -97,11 +117,10 @@ class IngestionService(
                 parentEventId = command.parentEventId,
                 schemaVersion = command.schemaVersion
             )
-            results.add(IngestEventResult(eventId = event.id, sequenceNumber = event.sequenceNumber))
+            results.add(IngestEventResult(eventId = event.id))
             allEvents.add(event)
         }
 
-        sessions.values.forEach { sessionRepository.save(it) }
         memoryEventPublisher.publishAll(allEvents)
 
         return results
@@ -110,12 +129,12 @@ class IngestionService(
     fun getSessionEvents(
         sessionId: SessionId,
         tenantId: TenantId,
-        afterSequenceNumber: Long? = null,
+        after: Instant? = null,
         limit: Int = 50
     ): List<MemoryEvent> {
         sessionRepository.findById(sessionId, tenantId)
             ?: throw IllegalArgumentException("Session not found: $sessionId")
-        return memoryEventQuery.findBySessionId(sessionId, tenantId, afterSequenceNumber, limit)
+        return memoryEventQuery.findBySessionId(sessionId, tenantId, after, limit)
     }
 
     fun purgeTenantSessions(tenantId: TenantId) {

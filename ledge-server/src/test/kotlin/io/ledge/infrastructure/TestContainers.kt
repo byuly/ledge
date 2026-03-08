@@ -60,7 +60,6 @@ object TestContainers {
                         started_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         ended_at            TIMESTAMPTZ,
                         status              TEXT NOT NULL DEFAULT 'ACTIVE',
-                        next_sequence_number BIGINT NOT NULL DEFAULT 1,
                         metadata            JSONB DEFAULT '{}'
                     );
                     CREATE INDEX idx_sessions_agent_tenant ON sessions(agent_id, tenant_id);
@@ -85,7 +84,6 @@ object TestContainers {
                         agent_id        UUID,
                         tenant_id       UUID,
                         event_type      LowCardinality(String),
-                        sequence_number Int64,
                         occurred_at     DateTime64(3, 'UTC'),
                         payload         String,
                         context_hash    String,
@@ -94,7 +92,7 @@ object TestContainers {
                     )
                     ENGINE = MergeTree()
                     PARTITION BY toYYYYMM(occurred_at)
-                    ORDER BY (tenant_id, agent_id, occurred_at, sequence_number)
+                    ORDER BY (tenant_id, agent_id, occurred_at)
                     """.trimIndent()
                 )
             }

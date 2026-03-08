@@ -12,7 +12,6 @@ data class MemoryEvent(
     val agentId: AgentId,
     val tenantId: TenantId,
     val eventType: EventType,
-    val sequenceNumber: Long,
     val occurredAt: Instant,
     val payload: String,
     val contextHash: ContextHash?,

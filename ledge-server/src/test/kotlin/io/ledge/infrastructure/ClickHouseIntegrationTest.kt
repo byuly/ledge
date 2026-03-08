@@ -37,7 +37,6 @@ class ClickHouseIntegrationTest {
         agentId: AgentId = TestFixtures.agentId(),
         tenantId: TenantId = TestFixtures.tenantId(),
         eventType: EventType = EventType.USER_INPUT,
-        sequenceNumber: Long = 1L,
         occurredAt: Instant = Instant.now().truncatedTo(ChronoUnit.MILLIS),
         payload: String = """{"text":"hello"}""",
         contextHash: ContextHash? = null,
@@ -49,7 +48,6 @@ class ClickHouseIntegrationTest {
         agentId = agentId,
         tenantId = tenantId,
         eventType = eventType,
-        sequenceNumber = sequenceNumber,
         occurredAt = occurredAt,
         payload = payload,
         contextHash = contextHash,
@@ -71,7 +69,6 @@ class ClickHouseIntegrationTest {
         assertEquals(event.id, found.id)
         assertEquals(event.eventType, found.eventType)
         assertEquals(event.payload, found.payload)
-        assertEquals(event.sequenceNumber, found.sequenceNumber)
     }
 
     @Test
@@ -79,20 +76,20 @@ class ClickHouseIntegrationTest {
         val tenantId = TestFixtures.tenantId()
         val sessionId = TestFixtures.sessionId()
         val agentId = TestFixtures.agentId()
+        val baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS)
 
-        val events = (1L..5L).map { seq ->
+        val events = (1..5).map { i ->
             makeEvent(
                 sessionId = sessionId,
                 agentId = agentId,
                 tenantId = tenantId,
-                sequenceNumber = seq
+                occurredAt = baseTime.plusMillis(i.toLong())
             )
         }
         writer.writeAll(events)
 
         val results = memoryEventQuery.findBySessionId(sessionId, tenantId)
         assertEquals(5, results.size)
-        assertEquals((1L..5L).toList(), results.map { it.sequenceNumber })
     }
 
     @Test
@@ -100,19 +97,24 @@ class ClickHouseIntegrationTest {
         val tenantId = TestFixtures.tenantId()
         val sessionId = TestFixtures.sessionId()
         val agentId = TestFixtures.agentId()
+        val baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS)
 
-        val events = (1L..10L).map { seq ->
-            makeEvent(sessionId = sessionId, agentId = agentId, tenantId = tenantId, sequenceNumber = seq)
+        val events = (1..10).map { i ->
+            makeEvent(
+                sessionId = sessionId,
+                agentId = agentId,
+                tenantId = tenantId,
+                occurredAt = baseTime.plusMillis(i.toLong())
+            )
         }
         writer.writeAll(events)
 
-        val page1 = memoryEventQuery.findBySessionId(sessionId, tenantId, afterSequenceNumber = null, limit = 3)
+        val page1 = memoryEventQuery.findBySessionId(sessionId, tenantId, after = null, limit = 3)
         assertEquals(3, page1.size)
-        assertEquals(listOf(1L, 2L, 3L), page1.map { it.sequenceNumber })
 
-        val page2 = memoryEventQuery.findBySessionId(sessionId, tenantId, afterSequenceNumber = 3L, limit = 3)
+        val page2 = memoryEventQuery.findBySessionId(sessionId, tenantId, after = page1.last().occurredAt, limit = 3)
         assertEquals(3, page2.size)
-        assertEquals(listOf(4L, 5L, 6L), page2.map { it.sequenceNumber })
+        assertTrue(page2[0].occurredAt.isAfter(page1.last().occurredAt))
     }
 
     @Test
@@ -157,9 +159,10 @@ class ClickHouseIntegrationTest {
         val tenantId = TestFixtures.tenantId()
         val sessionId = TestFixtures.sessionId()
         val parentId = TestFixtures.eventId()
+        val baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS)
 
-        writer.write(makeEvent(sessionId = sessionId, tenantId = tenantId, parentEventId = null, sequenceNumber = 1))
-        writer.write(makeEvent(sessionId = sessionId, tenantId = tenantId, parentEventId = parentId, sequenceNumber = 2))
+        writer.write(makeEvent(sessionId = sessionId, tenantId = tenantId, parentEventId = null, occurredAt = baseTime))
+        writer.write(makeEvent(sessionId = sessionId, tenantId = tenantId, parentEventId = parentId, occurredAt = baseTime.plusMillis(1)))
 
         val results = memoryEventQuery.findBySessionId(sessionId, tenantId)
         assertNull(results[0].parentEventId)
@@ -176,20 +179,17 @@ class ClickHouseIntegrationTest {
         val older = makeEvent(
             sessionId = sessionId, agentId = agentId, tenantId = tenantId,
             eventType = EventType.CONTEXT_ASSEMBLED,
-            occurredAt = now.minusSeconds(120),
-            sequenceNumber = 1
+            occurredAt = now.minusSeconds(120)
         )
         val newer = makeEvent(
             sessionId = sessionId, agentId = agentId, tenantId = tenantId,
             eventType = EventType.CONTEXT_ASSEMBLED,
-            occurredAt = now.minusSeconds(60),
-            sequenceNumber = 2
+            occurredAt = now.minusSeconds(60)
         )
         val nonContext = makeEvent(
             sessionId = sessionId, agentId = agentId, tenantId = tenantId,
             eventType = EventType.USER_INPUT,
-            occurredAt = now.minusSeconds(30),
-            sequenceNumber = 3
+            occurredAt = now.minusSeconds(30)
         )
         writer.writeAll(listOf(older, newer, nonContext))
 
@@ -208,18 +208,26 @@ class ClickHouseIntegrationTest {
     }
 
     @Test
-    fun `observation findBySessionId returns all events ordered by sequence`() {
+    fun `observation findBySessionId returns all events ordered by occurredAt`() {
         val tenantId = TestFixtures.tenantId()
         val sessionId = TestFixtures.sessionId()
         val agentId = TestFixtures.agentId()
+        val baseTime = Instant.now().truncatedTo(ChronoUnit.MILLIS)
 
-        val events = (1L..3L).map { seq ->
-            makeEvent(sessionId = sessionId, agentId = agentId, tenantId = tenantId, sequenceNumber = seq)
+        val events = (1..3).map { i ->
+            makeEvent(
+                sessionId = sessionId,
+                agentId = agentId,
+                tenantId = tenantId,
+                occurredAt = baseTime.plusMillis(i.toLong())
+            )
         }
         writer.writeAll(events)
 
         val results = observationEventQuery.findBySessionId(sessionId, tenantId)
         assertEquals(3, results.size)
-        assertEquals(listOf(1L, 2L, 3L), results.map { it.sequenceNumber })
+        // Verify ordered by occurredAt
+        assertTrue(results[0].occurredAt <= results[1].occurredAt)
+        assertTrue(results[1].occurredAt <= results[2].occurredAt)
     }
 }

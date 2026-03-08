@@ -29,5 +29,5 @@ class FakeObservationEventQuery : ObservationEventQuery {
     override fun findBySessionId(sessionId: SessionId, tenantId: TenantId): List<MemoryEvent> =
         events
             .filter { it.sessionId == sessionId && it.tenantId == tenantId }
-            .sortedBy { it.sequenceNumber }
+            .sortedBy { it.occurredAt }
 }

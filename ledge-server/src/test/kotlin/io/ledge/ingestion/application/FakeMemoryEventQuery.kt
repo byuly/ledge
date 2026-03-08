@@ -4,6 +4,7 @@ import io.ledge.ingestion.application.port.MemoryEventQuery
 import io.ledge.ingestion.domain.MemoryEvent
 import io.ledge.shared.SessionId
 import io.ledge.shared.TenantId
+import java.time.Instant
 
 class FakeMemoryEventQuery : MemoryEventQuery {
 
@@ -16,18 +17,18 @@ class FakeMemoryEventQuery : MemoryEventQuery {
     override fun findBySessionId(
         sessionId: SessionId,
         tenantId: TenantId,
-        afterSequenceNumber: Long?,
+        after: Instant?,
         limit: Int
     ): List<MemoryEvent> =
         events
             .filter { it.sessionId == sessionId && it.tenantId == tenantId }
             .let { filtered ->
-                if (afterSequenceNumber != null) {
-                    filtered.filter { it.sequenceNumber > afterSequenceNumber }
+                if (after != null) {
+                    filtered.filter { it.occurredAt.isAfter(after) }
                 } else {
                     filtered
                 }
             }
-            .sortedBy { it.sequenceNumber }
+            .sortedBy { it.occurredAt }
             .take(limit)
 }

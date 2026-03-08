@@ -46,7 +46,7 @@ class LedgeClientTest {
                         .withBody("""
                             {"sessionId":"sess-1","agentId":"agent-1","tenantId":"t-1",
                              "startedAt":"2024-01-01T00:00:00Z","endedAt":null,
-                             "status":"ACTIVE","nextSequenceNumber":1}
+                             "status":"ACTIVE"}
                         """.trimIndent())
                 )
         )
@@ -68,19 +68,12 @@ class LedgeClientTest {
             patch(urlEqualTo("/api/v1/sessions/sess-1"))
                 .willReturn(
                     aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody("""
-                            {"sessionId":"sess-1","agentId":"agent-1","tenantId":"t-1",
-                             "startedAt":"2024-01-01T00:00:00Z","endedAt":"2024-01-01T00:01:00Z",
-                             "status":"COMPLETED","nextSequenceNumber":5}
-                        """.trimIndent())
+                        .withStatus(202)
                 )
         )
 
-        val response = client.completeSession("sess-1")
+        client.completeSession("sess-1")
 
-        assertEquals("COMPLETED", response.status)
         wireMock.verify(
             patchRequestedFor(urlEqualTo("/api/v1/sessions/sess-1"))
                 .withRequestBody(matchingJsonPath("$.status", equalTo("COMPLETED")))
@@ -95,7 +88,7 @@ class LedgeClientTest {
                     aResponse()
                         .withStatus(202)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("""{"eventId":"evt-42","sequenceNumber":1}""")
+                        .withBody("""{"eventId":"evt-42"}""")
                 )
         )
 
@@ -129,7 +122,7 @@ class LedgeClientTest {
                     aResponse()
                         .withStatus(202)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("""{"accepted":1,"results":[{"eventId":"evt-1","sequenceNumber":1}]}""")
+                        .withBody("""{"accepted":1,"results":[{"eventId":"evt-1"}]}""")
                 )
         )
 
@@ -161,7 +154,7 @@ class LedgeClientTest {
                         .withBody("""
                             {"sessionId":"sess-1","agentId":"agent-1","tenantId":"t-1",
                              "startedAt":"2024-01-01T00:00:00Z","endedAt":null,
-                             "status":"ACTIVE","nextSequenceNumber":1}
+                             "status":"ACTIVE"}
                         """.trimIndent())
                 )
         )
@@ -171,7 +164,7 @@ class LedgeClientTest {
                     aResponse()
                         .withStatus(202)
                         .withHeader("Content-Type", "application/json")
-                        .withBody("""{"eventId":"evt-ctx","sequenceNumber":1}""")
+                        .withBody("""{"eventId":"evt-ctx"}""")
                 )
         )
 

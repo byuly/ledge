@@ -32,8 +32,7 @@ data class IngestEventRequest(
 }
 
 data class IngestEventResponse(
-    val eventId: String,
-    val sequenceNumber: Long
+    val eventId: String
 )
 
 data class IngestBatchRequest(

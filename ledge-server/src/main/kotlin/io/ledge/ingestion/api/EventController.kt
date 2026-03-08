@@ -28,8 +28,7 @@ class EventController(
         val result = ingestionService.ingestEvent(TenantId.fromString(tenantId), command)
         ResponseEntity.accepted().body(
             IngestEventResponse(
-                eventId = result.eventId.value.toString(),
-                sequenceNumber = result.sequenceNumber
+                eventId = result.eventId.value.toString()
             )
         )
     }
@@ -46,8 +45,7 @@ class EventController(
                 accepted = results.size,
                 results = results.map {
                     IngestEventResponse(
-                        eventId = it.eventId.value.toString(),
-                        sequenceNumber = it.sequenceNumber
+                        eventId = it.eventId.value.toString()
                     )
                 }
             )
