@@ -10,4 +10,5 @@ interface SessionRepository {
     fun findById(id: SessionId, tenantId: TenantId): Session?
     fun findByAgentId(agentId: AgentId, tenantId: TenantId): List<Session>
     fun deleteByTenantId(tenantId: TenantId)
+    fun countActive(): Long
 }

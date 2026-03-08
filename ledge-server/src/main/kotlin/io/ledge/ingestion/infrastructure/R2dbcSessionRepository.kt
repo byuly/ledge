@@ -81,6 +81,13 @@ class R2dbcSessionRepository(
             .block()
     }
 
+    override fun countActive(): Long {
+        return db.sql("SELECT COUNT(*) AS cnt FROM sessions WHERE status = 'ACTIVE'")
+            .map { row, _ -> row.get("cnt", java.lang.Long::class.java)!!.toLong() }
+            .one()
+            .block() ?: 0L
+    }
+
     private fun mapRow(row: io.r2dbc.spi.Row): Session {
         return Session(
             id = SessionId(row.get("session_id", UUID::class.java)!!),

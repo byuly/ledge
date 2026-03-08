@@ -24,4 +24,7 @@ class FakeSessionRepository : SessionRepository {
     override fun deleteByTenantId(tenantId: TenantId) {
         store.keys.removeAll { store[it]?.tenantId == tenantId }
     }
+
+    override fun countActive(): Long =
+        store.values.count { it.status == io.ledge.ingestion.domain.SessionStatus.ACTIVE }.toLong()
 }
