@@ -2,13 +2,15 @@ package io.ledge.infrastructure
 
 import io.ledge.shared.AgentId
 import io.ledge.shared.SessionId
+import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.stereotype.Component
 import java.time.Duration
 
 @Component
 class RedisContextCache(
-    private val redis: ReactiveStringRedisTemplate
+    private val redis: ReactiveStringRedisTemplate,
+    private val meterRegistry: MeterRegistry
 ) {
 
     fun putSessionContext(sessionId: SessionId, payload: String) {
@@ -18,9 +20,11 @@ class RedisContextCache(
     }
 
     fun getSessionContext(sessionId: SessionId): String? {
-        return redis.opsForValue()
+        val result = redis.opsForValue()
             .get("session:${sessionId.value}:context")
             .block()
+        meterRegistry.counter("ledge.redis.cache.requests", "result", if (result != null) "hit" else "miss").increment()
+        return result
     }
 
     fun putAgentLatestContext(agentId: AgentId, payload: String) {
@@ -30,9 +34,11 @@ class RedisContextCache(
     }
 
     fun getAgentLatestContext(agentId: AgentId): String? {
-        return redis.opsForValue()
+        val result = redis.opsForValue()
             .get("agent:${agentId.value}:context:latest")
             .block()
+        meterRegistry.counter("ledge.redis.cache.requests", "result", if (result != null) "hit" else "miss").increment()
+        return result
     }
 
     fun putSessionStatus(sessionId: SessionId, status: String) {

@@ -1,6 +1,7 @@
 package io.ledge.infrastructure
 
 import io.ledge.TestFixtures
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
@@ -17,7 +18,7 @@ class RedisContextCacheIntegrationTest {
     ).also { it.afterPropertiesSet() }
 
     private val redisTemplate = ReactiveStringRedisTemplate(connectionFactory)
-    private val cache = RedisContextCache(redisTemplate)
+    private val cache = RedisContextCache(redisTemplate, SimpleMeterRegistry())
 
     @BeforeEach
     fun flushAll() {
