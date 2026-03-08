@@ -235,7 +235,7 @@ A user submits a data deletion request. The developer calls the tenant-scoped de
 | Component | Responsibility |
 |---|---|
 | **SDK** | Instruments cognitive lifecycle (context assembly, inference, tool use). Emits observation events to the Ingest API. Handles batching and retry. |
-| **Ingest API** | Validates incoming events, validates payload structure per EventType, assigns sequence numbers, publishes to Kafka. Reactive (WebFlux). Returns `202 Accepted` immediately. |
+| **Ingest API** | Validates incoming events, validates payload structure per EventType, publishes to Kafka. Reactive (WebFlux). Returns `202 Accepted` immediately. |
 | **Query API** | Serves context reconstruction via `CONTEXT_ASSEMBLED` events, context diffs, audit trail queries. Reads from Redis (hot) or ClickHouse (cold). |
 | **Kafka** | Source of truth. All events are published here first. Never truncated. Partitioned by `tenantId` for isolation and parallelism. |
 | **Kafka Consumers** | Two consumer groups: (1) ClickHouse writer — persists all events for audit storage. (2) PostgreSQL + Redis writer — maintains live session state and context cache. |
@@ -440,7 +440,7 @@ The `contextHash` is a `ContextHash` value object wrapping a SHA-256 hex string 
 
 ### 5.2 Session
 
-Groups `MemoryEvent` records into a logical conversation or task execution. This is an **aggregate root** — it enforces invariants (session must be ACTIVE to ingest events, sequence numbers are monotonically increasing).
+Groups `MemoryEvent` records into a logical conversation or task execution. This is an **aggregate root** — it enforces invariants (session must be ACTIVE to ingest events).
 
 ```kotlin
 // io.ledge.ingestion.domain.Session — aggregate root (not a data class)
@@ -453,7 +453,7 @@ class Session(
     var status: SessionStatus,            // ACTIVE, COMPLETED, ABANDONED
     // Session no longer tracks sequence numbers — event ordering uses occurredAt timestamps
 ) {
-    // Key method — enforces invariant: session must be ACTIVE, assigns sequence number
+    // Key method — enforces invariant: session must be ACTIVE
     fun ingest(eventId, eventType, payload, ...): MemoryEvent
 
     // Lifecycle transitions — enforce valid state machine
@@ -873,7 +873,7 @@ Response:
 
 **GET** `/sessions/{sessionId}/audit`
 
-Full cognitive trace for a session. Returns all events in sequence with inference cycles grouped (CONTEXT_ASSEMBLED → INFERENCE_REQUESTED → REASONING_TRACE → INFERENCE_COMPLETED).
+Full cognitive trace for a session. Returns all events ordered by `occurredAt` with inference cycles grouped (CONTEXT_ASSEMBLED → INFERENCE_REQUESTED → REASONING_TRACE → INFERENCE_COMPLETED).
 
 ---
 
@@ -1478,7 +1478,7 @@ Domain value objects enforce business rules at construction time. They are imple
 2. **Typed IDs everywhere** — `TenantId` not `UUID`. Shared kernel types from `io.ledge.shared`.
 3. **Aggregate roots enforce invariants** — `Session.ingest()` checks status. `Tenant.suspend()` checks valid transition. These are not anemic data classes.
 4. **Value objects validate on construction** — `Confidence(1.5f)` throws, `ContextHash("")` throws.
-5. **Immutable where the domain says immutable** — `MemoryEvent` is a data class with val-only properties. Aggregate roots use var for mutable state they manage (status, sequence counters).
+5. **Immutable where the domain says immutable** — `MemoryEvent` is a data class with val-only properties. Aggregate roots use var for mutable state they manage (status, endedAt).
 
 ### 12.10 Infrastructure Adapter Patterns
 
