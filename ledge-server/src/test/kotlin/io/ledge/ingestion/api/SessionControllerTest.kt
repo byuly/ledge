@@ -8,6 +8,7 @@ import io.ledge.ingestion.application.FakeMemoryEventPublisher
 import io.ledge.ingestion.application.FakeMemoryEventQuery
 import io.ledge.ingestion.application.FakeSessionRepository
 import io.ledge.ingestion.application.IngestionService
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
@@ -31,7 +32,8 @@ class SessionControllerTest {
             sessionRepo,
             memoryEventPublisher,
             FakeDomainEventPublisher(),
-            memoryEventQuery
+            memoryEventQuery,
+            SimpleMeterRegistry()
         )
         val controller = SessionController(service)
         client = WebTestClient.bindToController(controller)

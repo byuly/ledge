@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -28,7 +29,7 @@ class IngestionServiceTest {
         memoryEventPublisher = FakeMemoryEventPublisher()
         domainEventPublisher = FakeDomainEventPublisher()
         memoryEventQuery = FakeMemoryEventQuery()
-        service = IngestionService(sessionRepo, memoryEventPublisher, domainEventPublisher, memoryEventQuery)
+        service = IngestionService(sessionRepo, memoryEventPublisher, domainEventPublisher, memoryEventQuery, SimpleMeterRegistry())
     }
 
     // --- createSession ---

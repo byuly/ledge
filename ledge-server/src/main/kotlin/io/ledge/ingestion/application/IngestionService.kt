@@ -11,13 +11,15 @@ import io.ledge.ingestion.domain.Session
 import io.ledge.shared.EventId
 import io.ledge.shared.SessionId
 import io.ledge.shared.TenantId
+import io.micrometer.core.instrument.MeterRegistry
 import java.time.Instant
 
 class IngestionService(
     private val sessionRepository: SessionRepository,
     private val memoryEventPublisher: MemoryEventPublisher,
     private val domainEventPublisher: DomainEventPublisher,
-    private val memoryEventQuery: MemoryEventQuery
+    private val memoryEventQuery: MemoryEventQuery,
+    private val meterRegistry: MeterRegistry
 ) {
 
     fun createSession(tenantId: TenantId, command: CreateSessionCommand): Session {
@@ -89,6 +91,11 @@ class IngestionService(
             schemaVersion = command.schemaVersion
         )
         memoryEventPublisher.publish(event)
+        meterRegistry.counter(
+            "ledge.events.ingested",
+            "eventType", command.eventType.name,
+            "tenantId", tenantId.value.toString()
+        ).increment()
         return IngestEventResult(eventId = event.id)
     }
 
@@ -122,6 +129,14 @@ class IngestionService(
         }
 
         memoryEventPublisher.publishAll(allEvents)
+
+        for (command in commands) {
+            meterRegistry.counter(
+                "ledge.events.ingested",
+                "eventType", command.eventType.name,
+                "tenantId", tenantId.value.toString()
+            ).increment()
+        }
 
         return results
     }
