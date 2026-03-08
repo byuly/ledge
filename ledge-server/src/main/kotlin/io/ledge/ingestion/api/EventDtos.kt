@@ -20,15 +20,19 @@ data class IngestEventRequest(
     val parentEventId: String? = null,
     val schemaVersion: Int = 1
 ) {
-    fun toCommand(objectMapper: ObjectMapper): IngestEventCommand = IngestEventCommand(
-        sessionId = SessionId.fromString(sessionId),
-        eventType = EventType.valueOf(eventType),
-        payload = objectMapper.writeValueAsString(payload),
-        occurredAt = Instant.parse(occurredAt),
-        contextHash = contextHash?.let { ContextHash(it) },
-        parentEventId = parentEventId?.let { EventId.fromString(it) },
-        schemaVersion = SchemaVersion(schemaVersion)
-    )
+    fun toCommand(objectMapper: ObjectMapper): IngestEventCommand {
+        val parsedEventType = EventType.valueOf(eventType)
+        EventPayloadValidator.validate(parsedEventType, payload)
+        return IngestEventCommand(
+            sessionId = SessionId.fromString(sessionId),
+            eventType = parsedEventType,
+            payload = objectMapper.writeValueAsString(payload),
+            occurredAt = Instant.parse(occurredAt),
+            contextHash = contextHash?.let { ContextHash(it) },
+            parentEventId = parentEventId?.let { EventId.fromString(it) },
+            schemaVersion = SchemaVersion(schemaVersion)
+        )
+    }
 }
 
 data class IngestEventResponse(
