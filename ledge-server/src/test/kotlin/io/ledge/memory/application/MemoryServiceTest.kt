@@ -8,6 +8,7 @@ import io.ledge.ingestion.domain.MemoryEvent
 import io.ledge.ingestion.domain.SchemaVersion
 import io.ledge.memory.domain.ContentBlock
 import io.ledge.shared.DomainEvent
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -33,7 +34,7 @@ class MemoryServiceTest {
         entryRepo = FakeMemoryEntryRepository()
         eventPublisher = FakeDomainEventPublisher()
         observationQuery = FakeObservationEventQuery()
-        service = MemoryService(snapshotRepo, entryRepo, eventPublisher, observationQuery)
+        service = MemoryService(snapshotRepo, entryRepo, eventPublisher, observationQuery, SimpleMeterRegistry())
     }
 
     // --- createSnapshot ---

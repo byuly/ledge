@@ -13,6 +13,7 @@ import io.ledge.memory.application.FakeMemorySnapshotRepository
 import io.ledge.memory.application.FakeObservationEventQuery
 import io.ledge.memory.application.MemoryService
 import io.ledge.memory.domain.ContentBlock
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.test.web.reactive.server.WebTestClient
@@ -33,7 +34,8 @@ class ObservationControllerTest {
             FakeMemorySnapshotRepository(),
             FakeMemoryEntryRepository(),
             FakeDomainEventPublisher(),
-            observationQuery
+            observationQuery,
+            SimpleMeterRegistry()
         )
         val controller = ObservationController(service, objectMapper)
         client = WebTestClient.bindToController(controller)

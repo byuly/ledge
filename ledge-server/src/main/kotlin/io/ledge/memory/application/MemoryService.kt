@@ -22,13 +22,15 @@ import io.ledge.shared.EventId
 import io.ledge.shared.SessionId
 import io.ledge.shared.SnapshotId
 import io.ledge.shared.TenantId
+import io.micrometer.core.instrument.MeterRegistry
 import java.time.Instant
 
 class MemoryService(
     private val snapshotRepository: MemorySnapshotRepository,
     private val entryRepository: MemoryEntryRepository,
     private val eventPublisher: DomainEventPublisher,
-    private val observationEventQuery: ObservationEventQuery
+    private val observationEventQuery: ObservationEventQuery,
+    private val meterRegistry: MeterRegistry
 ) {
     private val objectMapper = jacksonObjectMapper()
 
@@ -107,19 +109,22 @@ class MemoryService(
     // --- Observation Layer (v1) ---
 
     fun getContextAtTime(agentId: AgentId, tenantId: TenantId, timestamp: Instant): MemoryEvent? {
-        return observationEventQuery.findLatestContextAssembled(agentId, tenantId, timestamp)
+        return meterRegistry.timer("ledge.query.pointintime.duration", "source", "clickhouse")
+            .recordCallable { observationEventQuery.findLatestContextAssembled(agentId, tenantId, timestamp) }
     }
 
     fun diffContextWindows(agentId: AgentId, tenantId: TenantId, from: Instant, to: Instant): ObservationDiff {
-        val fromEvent = observationEventQuery.findLatestContextAssembled(agentId, tenantId, from)
-            ?: throw IllegalArgumentException("No CONTEXT_ASSEMBLED event found before: $from")
-        val toEvent = observationEventQuery.findLatestContextAssembled(agentId, tenantId, to)
-            ?: throw IllegalArgumentException("No CONTEXT_ASSEMBLED event found before: $to")
+        return meterRegistry.timer("ledge.query.diff.duration").recordCallable {
+            val fromEvent = observationEventQuery.findLatestContextAssembled(agentId, tenantId, from)
+                ?: throw IllegalArgumentException("No CONTEXT_ASSEMBLED event found before: $from")
+            val toEvent = observationEventQuery.findLatestContextAssembled(agentId, tenantId, to)
+                ?: throw IllegalArgumentException("No CONTEXT_ASSEMBLED event found before: $to")
 
-        val fromBlocks = parseContentBlocks(fromEvent.payload)
-        val toBlocks = parseContentBlocks(toEvent.payload)
+            val fromBlocks = parseContentBlocks(fromEvent.payload)
+            val toBlocks = parseContentBlocks(toEvent.payload)
 
-        return computeBlockDiff(fromEvent.id, toEvent.id, fromBlocks, toBlocks)
+            computeBlockDiff(fromEvent.id, toEvent.id, fromBlocks, toBlocks)
+        }!!
     }
 
     fun getAuditTrail(sessionId: SessionId, tenantId: TenantId): List<MemoryEvent> {
