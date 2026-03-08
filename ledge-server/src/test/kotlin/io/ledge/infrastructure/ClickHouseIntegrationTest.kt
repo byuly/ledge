@@ -9,6 +9,7 @@ import io.ledge.ingestion.infrastructure.ClickHouseMemoryEventQuery
 import io.ledge.ingestion.infrastructure.ClickHouseMemoryEventWriter
 import io.ledge.memory.infrastructure.ClickHouseObservationEventQuery
 import io.ledge.shared.*
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
@@ -21,7 +22,7 @@ import java.time.temporal.ChronoUnit
 class ClickHouseIntegrationTest {
 
     private val url = TestContainers.clickHouseUrl()
-    private val writer = ClickHouseMemoryEventWriter(url)
+    private val writer = ClickHouseMemoryEventWriter(url, SimpleMeterRegistry())
     private val memoryEventQuery = ClickHouseMemoryEventQuery(url)
     private val observationEventQuery = ClickHouseObservationEventQuery(url)
 

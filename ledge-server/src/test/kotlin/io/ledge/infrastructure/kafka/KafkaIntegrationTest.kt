@@ -10,6 +10,7 @@ import io.ledge.ingestion.domain.MemoryEvent
 import io.ledge.ingestion.domain.SchemaVersion
 import io.ledge.ingestion.application.FakeSessionRepository
 import io.ledge.ingestion.infrastructure.ClickHouseMemoryEventWriter
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.admin.NewTopic
@@ -79,12 +80,12 @@ class KafkaIntegrationTest {
             kafkaTemplate = KafkaTemplate(producerFactory)
             publisher = KafkaMemoryEventPublisher(kafkaTemplate, objectMapper)
 
-            clickHouseWriter = ClickHouseMemoryEventWriter(TestContainers.clickHouseUrl())
+            clickHouseWriter = ClickHouseMemoryEventWriter(TestContainers.clickHouseUrl(), SimpleMeterRegistry())
 
             val lettuceFactory = LettuceConnectionFactory(TestContainers.redisHost(), TestContainers.redisPort())
             lettuceFactory.afterPropertiesSet()
             val redisTemplate = ReactiveStringRedisTemplate(lettuceFactory)
-            redisContextCache = RedisContextCache(redisTemplate)
+            redisContextCache = RedisContextCache(redisTemplate, SimpleMeterRegistry())
 
             clickHouseConsumer = ClickHouseWriterConsumer(clickHouseWriter, objectMapper)
             redisConsumer = RedisWriterConsumer(redisContextCache, FakeSessionRepository(), objectMapper)

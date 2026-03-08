@@ -15,6 +15,7 @@ import io.ledge.memory.application.FakeMemorySnapshotRepository
 import io.ledge.memory.application.MemoryService
 import io.ledge.memory.domain.ContentBlock
 import io.ledge.memory.infrastructure.ClickHouseObservationEventQuery
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.ledge.shared.AgentId
 import io.ledge.shared.EventId
 import io.ledge.shared.SessionId
@@ -31,7 +32,7 @@ import java.time.temporal.ChronoUnit
 class ObservationControllerIntegrationTest {
 
     private val url = TestContainers.clickHouseUrl()
-    private val writer = ClickHouseMemoryEventWriter(url)
+    private val writer = ClickHouseMemoryEventWriter(url, SimpleMeterRegistry())
     private val observationQuery = ClickHouseObservationEventQuery(url)
     private val objectMapper = jacksonObjectMapper()
 
@@ -47,7 +48,8 @@ class ObservationControllerIntegrationTest {
             FakeMemorySnapshotRepository(),
             FakeMemoryEntryRepository(),
             FakeDomainEventPublisher(),
-            observationQuery
+            observationQuery,
+            SimpleMeterRegistry()
         )
         val controller = ObservationController(service, objectMapper)
         client = WebTestClient.bindToController(controller)
