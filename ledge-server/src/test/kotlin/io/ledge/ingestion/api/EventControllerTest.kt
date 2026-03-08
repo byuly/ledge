@@ -10,6 +10,7 @@ import io.ledge.ingestion.application.FakeMemoryEventPublisher
 import io.ledge.ingestion.application.FakeMemoryEventQuery
 import io.ledge.ingestion.application.FakeSessionRepository
 import io.ledge.ingestion.application.IngestionService
+import io.ledge.ingestion.domain.EventType
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
@@ -56,13 +57,38 @@ class EventControllerTest {
                     "agentId": "${agentId.value}",
                     "eventType": "USER_INPUT",
                     "occurredAt": "$now",
-                    "payload": {"text": "hello"}
+                    "payload": ${TestFixtures.validPayloadJson(EventType.USER_INPUT)}
                 }
             """.trimIndent())
             .exchange()
             .expectStatus().isAccepted
             .expectBody()
             .jsonPath("$.eventId").isNotEmpty
+    }
+
+    @Test
+    fun `ingestEvent returns 400 for invalid payload`() {
+        val tenantId = TestFixtures.tenantId()
+        val agentId = TestFixtures.agentId()
+        val session = service.createSession(tenantId, CreateSessionCommand(agentId))
+        val now = Instant.now().toString()
+
+        client.post().uri("/api/v1/events")
+            .header("X-Tenant-Id", tenantId.value.toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue("""
+                {
+                    "sessionId": "${session.id.value}",
+                    "agentId": "${agentId.value}",
+                    "eventType": "USER_INPUT",
+                    "occurredAt": "$now",
+                    "payload": {"wrong": "fields"}
+                }
+            """.trimIndent())
+            .exchange()
+            .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Bad Request")
     }
 
     @Test
@@ -79,7 +105,7 @@ class EventControllerTest {
                     "agentId": "${TestFixtures.agentId().value}",
                     "eventType": "USER_INPUT",
                     "occurredAt": "$now",
-                    "payload": {"text": "hello"}
+                    "payload": ${TestFixtures.validPayloadJson(EventType.USER_INPUT)}
                 }
             """.trimIndent())
             .exchange()
@@ -105,7 +131,7 @@ class EventControllerTest {
                     "agentId": "${agentId.value}",
                     "eventType": "USER_INPUT",
                     "occurredAt": "$now",
-                    "payload": {"text": "hello"}
+                    "payload": ${TestFixtures.validPayloadJson(EventType.USER_INPUT)}
                 }
             """.trimIndent())
             .exchange()
@@ -134,14 +160,14 @@ class EventControllerTest {
                             "agentId": "${agentId.value}",
                             "eventType": "USER_INPUT",
                             "occurredAt": "$now",
-                            "payload": {"text": "first"}
+                            "payload": ${TestFixtures.validPayloadJson(EventType.USER_INPUT)}
                         },
                         {
                             "sessionId": "${session.id.value}",
                             "agentId": "${agentId.value}",
                             "eventType": "AGENT_OUTPUT",
                             "occurredAt": "$now",
-                            "payload": {"text": "second"}
+                            "payload": ${TestFixtures.validPayloadJson(EventType.AGENT_OUTPUT)}
                         }
                     ]
                 }
@@ -183,7 +209,7 @@ class EventControllerTest {
                     "agentId": "${agentId.value}",
                     "eventType": "USER_INPUT",
                     "occurredAt": "$now",
-                    "payload": {"text": "event-$i"}
+                    "payload": ${TestFixtures.validPayloadJson(EventType.USER_INPUT)}
                 }
             """.trimIndent()
         }
@@ -192,6 +218,42 @@ class EventControllerTest {
             .header("X-Tenant-Id", tenantId.value.toString())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue("""{"events": [$events]}""")
+            .exchange()
+            .expectStatus().isBadRequest
+            .expectBody()
+            .jsonPath("$.error").isEqualTo("Bad Request")
+    }
+
+    @Test
+    fun `ingestBatch returns 400 when any event has invalid payload`() {
+        val tenantId = TestFixtures.tenantId()
+        val agentId = TestFixtures.agentId()
+        val session = service.createSession(tenantId, CreateSessionCommand(agentId))
+        val now = Instant.now().toString()
+
+        client.post().uri("/api/v1/events/batch")
+            .header("X-Tenant-Id", tenantId.value.toString())
+            .contentType(MediaType.APPLICATION_JSON)
+            .bodyValue("""
+                {
+                    "events": [
+                        {
+                            "sessionId": "${session.id.value}",
+                            "agentId": "${agentId.value}",
+                            "eventType": "USER_INPUT",
+                            "occurredAt": "$now",
+                            "payload": ${TestFixtures.validPayloadJson(EventType.USER_INPUT)}
+                        },
+                        {
+                            "sessionId": "${session.id.value}",
+                            "agentId": "${agentId.value}",
+                            "eventType": "TOOL_INVOKED",
+                            "occurredAt": "$now",
+                            "payload": {"missing": "required fields"}
+                        }
+                    ]
+                }
+            """.trimIndent())
             .exchange()
             .expectStatus().isBadRequest
             .expectBody()

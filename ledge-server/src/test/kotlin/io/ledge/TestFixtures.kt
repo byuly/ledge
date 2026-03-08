@@ -183,6 +183,19 @@ object TestFixtures {
         after = after
     )
 
+    fun validPayloadJson(eventType: EventType): String = when (eventType) {
+        EventType.USER_INPUT -> """{"content":"hello","inputType":"text"}"""
+        EventType.CONTEXT_ASSEMBLED -> """{"blocks":[],"totalTokens":100}"""
+        EventType.INFERENCE_REQUESTED -> """{"modelId":"gpt-4","provider":"openai"}"""
+        EventType.INFERENCE_COMPLETED -> """{"response":"hi","finishReason":"stop","latencyMs":120,"modelId":"gpt-4","usage":{"promptTokens":10,"completionTokens":5,"totalTokens":15}}"""
+        EventType.REASONING_TRACE -> """{"thinkingContent":"let me think","thinkingTokenCount":42}"""
+        EventType.AGENT_OUTPUT -> """{"content":"response","outputType":"text","inferenceEventId":"evt-1"}"""
+        EventType.TOOL_INVOKED -> """{"toolName":"search","toolId":"t1","parameters":{}}"""
+        EventType.TOOL_RESPONDED -> """{"toolName":"search","toolInvokedEventId":"evt-1","result":"ok","durationMs":50,"success":true}"""
+        EventType.ERROR -> """{"errorType":"TIMEOUT","message":"timed out","recoverable":true}"""
+        EventType.SESSION_COMPLETED, EventType.SESSION_ABANDONED -> """{}"""
+    }
+
     fun observationDiff(
         fromEventId: EventId = eventId(),
         toEventId: EventId = eventId(),
