@@ -25,7 +25,7 @@ Ordered by priority. Each item is self-contained and independently actionable.
 
 ---
 
-### [ ] 2. Instrument domain metrics (Micrometer)
+### [x] 2. Instrument domain metrics (Micrometer)
 
 **PRD §10.4:** Specifies named Micrometer counters/timers that must be manually instrumented:
 
